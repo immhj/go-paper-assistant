@@ -43,12 +43,14 @@
 在本机（Windows PowerShell）仓库根目录：
 
 ```powershell
-./scripts/release.ps1 -Server deploy@<IP> -IncludeBaseImages   # 首次：连同 mysql/redis/caddy 一起带上
-./scripts/release.ps1 -Server deploy@<IP>                      # 之后：只带 app 和 paperscraper
-./scripts/release.ps1 -Server deploy@<IP> -Rollback <sha>      # 回滚到服务器上已有的版本
+./scripts/release.ps1 -Server deploy@<IP> -PublicIP <IP> -IncludeBaseImages   # 首次：连同 mysql/redis/caddy 一起带上
+./scripts/release.ps1 -Server deploy@<IP> -PublicIP <IP>                      # 之后：只带 app 和 paperscraper
+./scripts/release.ps1 -Server deploy@<IP> -Rollback <sha>                     # 回滚到服务器上已有的版本
 ```
 
-脚本要求工作区干净，镜像标签取 git 短 SHA；`remote.sh activate` 在 app 健康检查通过前不会返回成功，失败时打印最近日志。服务器保留最近 3 个版本。
+普通发布要求工作区干净，并通过当前 **HEAD** 对应的 GitHub Actions `CI` workflow；脚本不会接受分支上某次更早的绿色构建。仅紧急情况可显式加 `-SkipCI` 绕过，终端会给出警告。镜像标签取 git 短 SHA；`remote.sh activate` 在 app 健康检查通过前不会返回成功。
+
+切换成功后，脚本会建立一次临时 SSH 隧道到远端 Caddy 的回环 443，再对 `https://<IP>/healthz` 做 TLS 校验完整的只读检查。该检查不创建访客/项目记录，也不调用模型。它失败时**不会自动回滚**：SSH 或本机端口问题不应触发破坏性操作；脚本会打印上一个镜像 tag 对应的显式回滚命令。正常发布后服务器只保留最近 3 个 tag，因此太旧的版本可能已无法回滚。
 
 **首次发布后初始化数据库**：`docs/schema.sql` 只在 MySQL 数据卷为空时自动执行；之后的结构变更按 `docs/migrations/` 手工执行，执行前先备份。
 

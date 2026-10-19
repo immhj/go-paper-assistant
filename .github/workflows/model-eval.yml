@@ -1,0 +1,60 @@
+name: Live Model Evaluation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - internal/service/planner.go
+      - internal/service/plan.go
+      - internal/service/search.go
+      - internal/service/testdata/live_eval.jsonl
+      - internal/service/live_eval_test.go
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-model-eval-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    name: Planner and relevance report
+    # This workflow is deliberately separate from CI and never gates merge/release (ADR 0024).
+    runs-on: ubuntu-latest
+    env:
+      DEEPSEEK_API_BASE: https://api.deepseek.com
+      DEEPSEEK_MODEL: deepseek-flash
+      MODEL_EVAL_MAX_COST_USD: "0.20"
+      MODEL_EVAL_REPORT_DIR: eval-artifacts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run bounded live evaluation
+        id: evaluate
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo 'Live evaluation skipped: DEEPSEEK_API_KEY secret is not configured.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'ran=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'ran=true' >> "$GITHUB_OUTPUT"
+          go test -tags=liveeval -count=1 -run TestLiveModelEval -v ./internal/service
+      - name: Publish evaluation summary
+        if: steps.evaluate.outputs.ran == 'true'
+        run: cat eval-artifacts/model-eval-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload evaluation report and seed fixtures
+        if: steps.evaluate.outputs.ran == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-model-eval-${{ github.run_id }}
+          path: |
+            eval-artifacts/model-eval-report.json
+            eval-artifacts/model-eval-summary.md
+            internal/service/testdata/live_eval.jsonl
+          retention-days: 30
