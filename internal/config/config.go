@@ -119,87 +119,97 @@ type FullTextConfig struct {
 	MaxPDFBytes int64
 }
 
-func Load() (Config, error) {
-	for _, key := range []string{
-		"PLATFORM_OPEN_REGISTRATION_ENABLED", "PLATFORM_GUEST_ACCESS_ENABLED",
-		"PLATFORM_GUEST_DEEP_READ_ENABLED", "PLATFORM_GUEST_IMPORT_ENABLED",
-		"PLATFORM_EMAIL_VERIFICATION_REQUIRED", "PLATFORM_COST_BREAKER_ENABLED", "QQ_ENABLED",
-	} {
-		if err := validateBoolEnv(key); err != nil {
-			return Config{}, err
-		}
-	}
+const (
+	EnvDevelopment = "development"
+	EnvProduction  = "production"
 
+	// minProductionAdminPasswordLen applies to the HTTP Basic credential guarding the admin listener.
+	minProductionAdminPasswordLen = 16
+)
+
+// Load reads configuration from the environment and fails closed: an unknown APP_ENV, a value
+// that does not parse, or a missing production secret aborts startup instead of silently falling
+// back to a default. APP_ENV defaults to production so that forgetting it can never enable the
+// development-only insecure fallbacks.
+func Load() (Config, error) {
 	trustedProxyCIDRs, err := parseTrustedProxyCIDRs(os.Getenv("TRUSTED_PROXY_CIDRS"))
 	if err != nil {
 		return Config{}, err
 	}
 
+	r := &envReader{}
 	cfg := Config{
-		Environment:       env("APP_ENV", "development"),
+		Environment:       strings.ToLower(env("APP_ENV", EnvProduction)),
 		Address:           env("APP_ADDR", ":8080"),
-		ShutdownTimeout:   envDuration("SHUTDOWN_TIMEOUT", 15*time.Second),
+		ShutdownTimeout:   r.envDuration("SHUTDOWN_TIMEOUT", 15*time.Second),
 		TrustedProxyCIDRs: trustedProxyCIDRs,
 		MySQL: MySQLConfig{
 			DSN:            env("MYSQL_DSN", "paper:paper@tcp(127.0.0.1:3306)/paper_assistant?parseTime=true&charset=utf8mb4&loc=Local"),
-			ConnectTimeout: envDuration("MYSQL_CONNECT_TIMEOUT", 60*time.Second),
+			ConnectTimeout: r.envDuration("MYSQL_CONNECT_TIMEOUT", 60*time.Second),
 		},
 		Redis: RedisConfig{
 			Addr: env("REDIS_ADDR", "127.0.0.1:6379"), Password: os.Getenv("REDIS_PASSWORD"),
-			DB: envInt("REDIS_DB", 0), DialTimeout: envDuration("REDIS_DIAL_TIMEOUT", 5*time.Second),
-			ReadTimeout: envDuration("REDIS_READ_TIMEOUT", 3*time.Second), WriteTimeout: envDuration("REDIS_WRITE_TIMEOUT", 3*time.Second),
+			DB: r.envInt("REDIS_DB", 0), DialTimeout: r.envDuration("REDIS_DIAL_TIMEOUT", 5*time.Second),
+			ReadTimeout: r.envDuration("REDIS_READ_TIMEOUT", 3*time.Second), WriteTimeout: r.envDuration("REDIS_WRITE_TIMEOUT", 3*time.Second),
 		},
 		SMTP: SMTPConfig{
 			Mode: strings.ToLower(env("SMTP_MODE", "log")), Host: env("SMTP_HOST", "smtp.qq.com"),
-			Port: envInt("SMTP_PORT", 465), From: strings.TrimSpace(os.Getenv("SMTP_FROM")),
+			Port: r.envInt("SMTP_PORT", 465), From: strings.TrimSpace(os.Getenv("SMTP_FROM")),
 			AuthCode: strings.TrimSpace(os.Getenv("SMTP_AUTH_CODE")), TLSMode: strings.ToLower(env("SMTP_TLS_MODE", "implicit")),
-			Timeout: envDuration("SMTP_TIMEOUT", 15*time.Second),
+			Timeout: r.envDuration("SMTP_TIMEOUT", 15*time.Second),
 		},
 		Admin: AdminConfig{Username: env("ADMIN_USER", "admin"), Password: env("ADMIN_PASSWORD", "admin")},
 		Platform: PlatformConfig{
-			JWTSecret: strings.TrimSpace(os.Getenv("JWT_SECRET")), JWTTTL: envDuration("JWT_TTL", 24*time.Hour),
+			JWTSecret: strings.TrimSpace(os.Getenv("JWT_SECRET")), JWTTTL: r.envDuration("JWT_TTL", 24*time.Hour),
 			VerificationPepper:            strings.TrimSpace(os.Getenv("VERIFICATION_PEPPER")),
-			VerificationTTL:               envDuration("VERIFICATION_TTL", 10*time.Minute),
-			VerificationMaxAttempts:       envInt("VERIFICATION_MAX_ATTEMPTS", 5),
-			VerificationResendAfter:       envDuration("VERIFICATION_RESEND_AFTER", time.Minute),
-			VerificationEmailHourlyLimit:  envInt("VERIFICATION_EMAIL_HOURLY_LIMIT", 5),
-			VerificationIPHourlyLimit:     envInt("VERIFICATION_IP_HOURLY_LIMIT", 20),
-			VerificationGlobalHourlyLimit: envInt("VERIFICATION_GLOBAL_HOURLY_LIMIT", 200),
-			VerificationRateWindow:        envDuration("VERIFICATION_RATE_WINDOW", time.Hour),
-			OpenRegistrationEnabled:       envBool("PLATFORM_OPEN_REGISTRATION_ENABLED", true),
-			GuestAccessEnabled:            envBool("PLATFORM_GUEST_ACCESS_ENABLED", true),
-			GuestDeepReadEnabled:          envBool("PLATFORM_GUEST_DEEP_READ_ENABLED", true),
-			GuestImportEnabled:            envBool("PLATFORM_GUEST_IMPORT_ENABLED", true),
-			EmailVerificationRequired:     envBool("PLATFORM_EMAIL_VERIFICATION_REQUIRED", true),
-			CostBreakerEnabled:            envBool("PLATFORM_COST_BREAKER_ENABLED", true),
-			CostHourlyUSD:                 envFloat("PLATFORM_COST_HOURLY_USD", 2), CostDailyUSD: envFloat("PLATFORM_COST_DAILY_USD", 10),
-			APIPerMinute: envInt("PLATFORM_API_PER_MINUTE", 30), LoginFailureLimit: envInt("PLATFORM_LOGIN_FAILURE_LIMIT", 5),
-			LoginFailureWindow: envDuration("PLATFORM_LOGIN_FAILURE_WINDOW", 15*time.Minute),
+			VerificationTTL:               r.envDuration("VERIFICATION_TTL", 10*time.Minute),
+			VerificationMaxAttempts:       r.envInt("VERIFICATION_MAX_ATTEMPTS", 5),
+			VerificationResendAfter:       r.envDuration("VERIFICATION_RESEND_AFTER", time.Minute),
+			VerificationEmailHourlyLimit:  r.envInt("VERIFICATION_EMAIL_HOURLY_LIMIT", 5),
+			VerificationIPHourlyLimit:     r.envInt("VERIFICATION_IP_HOURLY_LIMIT", 20),
+			VerificationGlobalHourlyLimit: r.envInt("VERIFICATION_GLOBAL_HOURLY_LIMIT", 200),
+			VerificationRateWindow:        r.envDuration("VERIFICATION_RATE_WINDOW", time.Hour),
+			OpenRegistrationEnabled:       r.envBool("PLATFORM_OPEN_REGISTRATION_ENABLED", true),
+			GuestAccessEnabled:            r.envBool("PLATFORM_GUEST_ACCESS_ENABLED", true),
+			GuestDeepReadEnabled:          r.envBool("PLATFORM_GUEST_DEEP_READ_ENABLED", true),
+			GuestImportEnabled:            r.envBool("PLATFORM_GUEST_IMPORT_ENABLED", true),
+			EmailVerificationRequired:     r.envBool("PLATFORM_EMAIL_VERIFICATION_REQUIRED", true),
+			CostBreakerEnabled:            r.envBool("PLATFORM_COST_BREAKER_ENABLED", true),
+			CostHourlyUSD:                 r.envFloat("PLATFORM_COST_HOURLY_USD", 2), CostDailyUSD: r.envFloat("PLATFORM_COST_DAILY_USD", 10),
+			APIPerMinute: r.envInt("PLATFORM_API_PER_MINUTE", 30), LoginFailureLimit: r.envInt("PLATFORM_LOGIN_FAILURE_LIMIT", 5),
+			LoginFailureWindow: r.envDuration("PLATFORM_LOGIN_FAILURE_WINDOW", 15*time.Minute),
 		},
 		QQ: QQConfig{
-			Enabled: envBool("QQ_ENABLED", false), AppID: strings.TrimSpace(os.Getenv("QQ_APP_ID")),
+			Enabled: r.envBool("QQ_ENABLED", false), AppID: strings.TrimSpace(os.Getenv("QQ_APP_ID")),
 			AppSecret: strings.TrimSpace(os.Getenv("QQ_APP_SECRET")), APIBase: strings.TrimRight(env("QQ_API_BASE", "https://api.bot.qq.com"), "/"),
 			TokenURL: env("QQ_TOKEN_URL", "https://api.bot.qq.com/app/getAppAccessToken"), GatewayURL: strings.TrimSpace(os.Getenv("QQ_GATEWAY_URL")),
-			Intents: uint32(envInt("QQ_INTENTS", 1<<25)), ReconnectMin: envDuration("QQ_RECONNECT_MIN", 2*time.Second),
-			ReconnectMax: envDuration("QQ_RECONNECT_MAX", 30*time.Second),
+			Intents: uint32(r.envInt("QQ_INTENTS", 1<<25)), ReconnectMin: r.envDuration("QQ_RECONNECT_MIN", 2*time.Second),
+			ReconnectMax: r.envDuration("QQ_RECONNECT_MAX", 30*time.Second),
 		},
 		PaperScraper: PaperScraperConfig{
 			BaseURL:     strings.TrimRight(env("PAPERSCRAPER_URL", "http://127.0.0.1:8090"), "/"),
-			ResultLimit: envInt("PAPERSCRAPER_RESULT_LIMIT", 5), Timeout: envDuration("PAPERSCRAPER_TIMEOUT", 90*time.Second),
+			ResultLimit: r.envInt("PAPERSCRAPER_RESULT_LIMIT", 5), Timeout: r.envDuration("PAPERSCRAPER_TIMEOUT", 90*time.Second),
 		},
 		DeepSeek: DeepSeekConfig{
 			APIBase: strings.TrimRight(env("DEEPSEEK_API_BASE", "https://api.deepseek.com"), "/"), APIKey: strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")),
-			Model: env("DEEPSEEK_MODEL", "deepseek-flash"), Timeout: envDuration("DEEPSEEK_TIMEOUT", 180*time.Second),
-			PeakInputPerM: envFloat("DEEPSEEK_PEAK_INPUT_PER_M", 0.30), PeakCacheHitPerM: envFloat("DEEPSEEK_PEAK_CACHE_HIT_PER_M", 0.006),
-			PeakOutputPerM: envFloat("DEEPSEEK_PEAK_OUTPUT_PER_M", 1.20),
+			Model: env("DEEPSEEK_MODEL", "deepseek-flash"), Timeout: r.envDuration("DEEPSEEK_TIMEOUT", 180*time.Second),
+			PeakInputPerM: r.envFloat("DEEPSEEK_PEAK_INPUT_PER_M", 0.30), PeakCacheHitPerM: r.envFloat("DEEPSEEK_PEAK_CACHE_HIT_PER_M", 0.006),
+			PeakOutputPerM: r.envFloat("DEEPSEEK_PEAK_OUTPUT_PER_M", 1.20),
 		},
 		FullText: FullTextConfig{
 			Directory: env("FULLTEXT_DIR", "data/fulltext"), PDFToText: env("PDFTOTEXT_BIN", "pdftotext"),
-			MaxPDFBytes: int64(envInt("MAX_PDF_BYTES", 50*1024*1024)),
+			MaxPDFBytes: int64(r.envInt("MAX_PDF_BYTES", 50*1024*1024)),
 		},
 	}
 
-	if cfg.Environment == "development" {
+	if err := r.err(); err != nil {
+		return Config{}, err
+	}
+	if cfg.Environment != EnvDevelopment && cfg.Environment != EnvProduction {
+		return Config{}, fmt.Errorf("APP_ENV must be %q or %q, got %q", EnvDevelopment, EnvProduction, cfg.Environment)
+	}
+
+	if cfg.Environment == EnvDevelopment {
 		if cfg.Platform.JWTSecret == "" {
 			cfg.Platform.JWTSecret = "dev-insecure-jwt-secret-change-me"
 		}
@@ -229,8 +239,11 @@ func validate(cfg Config) error {
 	if cfg.QQ.ReconnectMin <= 0 || cfg.QQ.ReconnectMax < cfg.QQ.ReconnectMin {
 		return errors.New("QQ reconnect durations are invalid")
 	}
-	if cfg.Environment != "development" && cfg.Admin.Username == "admin" && cfg.Admin.Password == "admin" {
+	if cfg.Environment != EnvDevelopment && cfg.Admin.Username == "admin" && cfg.Admin.Password == "admin" {
 		return errors.New("ADMIN_USER/ADMIN_PASSWORD defaults are forbidden outside development")
+	}
+	if cfg.Environment == EnvProduction && len(cfg.Admin.Password) < minProductionAdminPasswordLen {
+		return fmt.Errorf("ADMIN_PASSWORD must be at least %d characters in production", minProductionAdminPasswordLen)
 	}
 	if cfg.Platform.JWTSecret == "" {
 		return errors.New("JWT_SECRET is required outside development")
@@ -262,7 +275,7 @@ func validate(cfg Config) error {
 	if cfg.SMTP.Timeout <= 0 || cfg.SMTP.Port < 1 || cfg.SMTP.Port > 65535 || cfg.SMTP.Host == "" {
 		return errors.New("SMTP host, port and timeout are invalid")
 	}
-	if cfg.Environment == "production" {
+	if cfg.Environment == EnvProduction {
 		for _, key := range []string{"SMTP_MODE", "SMTP_HOST", "SMTP_PORT", "SMTP_FROM", "SMTP_AUTH_CODE", "SMTP_TLS_MODE"} {
 			if strings.TrimSpace(os.Getenv(key)) == "" {
 				return fmt.Errorf("%s is required in production", key)
@@ -284,19 +297,8 @@ func validate(cfg Config) error {
 			return errors.New("PLATFORM_COST_BREAKER_ENABLED must be true in production")
 		}
 	}
-	if cfg.Environment != "development" && cfg.SMTP.Mode == "log" {
+	if cfg.Environment != EnvDevelopment && cfg.SMTP.Mode == "log" {
 		return errors.New("SMTP_MODE=log is allowed only in development")
-	}
-	return nil
-}
-
-func validateBoolEnv(key string) error {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return nil
-	}
-	if _, err := strconv.ParseBool(value); err != nil {
-		return fmt.Errorf("%s must be a boolean", key)
 	}
 	return nil
 }
@@ -308,49 +310,64 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-func envInt(key string, fallback int) int {
+// envReader parses typed environment variables. An empty variable yields the fallback; a value
+// that is set but does not parse is recorded as an error so Load can refuse to start, rather than
+// silently replacing an operator's typo with a default.
+type envReader struct{ errs []error }
+
+func (r *envReader) err() error { return errors.Join(r.errs...) }
+
+func (r *envReader) fail(key, kind, value string) {
+	r.errs = append(r.errs, fmt.Errorf("%s must be %s, got %q", key, kind, value))
+}
+
+func (r *envReader) envInt(key string, fallback int) int {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
+		r.fail(key, "an integer", value)
 		return fallback
 	}
 	return parsed
 }
 
-func envFloat(key string, fallback float64) float64 {
+func (r *envReader) envFloat(key string, fallback float64) float64 {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
 	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
+		r.fail(key, "a number", value)
 		return fallback
 	}
 	return parsed
 }
 
-func envBool(key string, fallback bool) bool {
+func (r *envReader) envBool(key string, fallback bool) bool {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
+		r.fail(key, "a boolean", value)
 		return fallback
 	}
 	return parsed
 }
 
-func envDuration(key string, fallback time.Duration) time.Duration {
+func (r *envReader) envDuration(key string, fallback time.Duration) time.Duration {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
+		r.fail(key, "a duration such as 30s or 15m", value)
 		return fallback
 	}
 	return parsed

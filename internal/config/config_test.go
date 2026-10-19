@@ -97,6 +97,62 @@ func TestPlatformFlagTyposFailClosed(t *testing.T) {
 	}
 }
 
+func TestUnsetAppEnvDefaultsToProductionAndNeverUsesDevFallbacks(t *testing.T) {
+	clearSecurityEnv(t)
+	t.Setenv("APP_ENV", "")
+	t.Setenv("ADMIN_USER", "operator")
+	t.Setenv("ADMIN_PASSWORD", "strong-admin-password")
+	// No JWT secret configured: production validation must reject startup instead of
+	// substituting the hard-coded development JWT secret.
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "JWT_SECRET") {
+		t.Fatalf("unset APP_ENV did not fail closed: %v", err)
+	}
+}
+
+func TestUnknownAppEnvIsRejected(t *testing.T) {
+	for _, value := range []string{"prod", "staging", "dev"} {
+		clearSecurityEnv(t)
+		t.Setenv("APP_ENV", value)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "APP_ENV") {
+			t.Fatalf("APP_ENV=%q accepted: %v", value, err)
+		}
+	}
+}
+
+func TestProductionRequiresLongAdminPassword(t *testing.T) {
+	productionBase(t)
+	t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("VERIFICATION_PEPPER", "abcdef0123456789abcdef0123456789")
+	t.Setenv("ADMIN_PASSWORD", "short-password")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "ADMIN_PASSWORD") {
+		t.Fatalf("short production admin password accepted: %v", err)
+	}
+	t.Setenv("ADMIN_PASSWORD", "strong-admin-password")
+	if _, err := Load(); err != nil {
+		t.Fatalf("valid production config rejected: %v", err)
+	}
+}
+
+func TestUnparseableTypedValuesFailClosed(t *testing.T) {
+	cases := map[string]string{
+		"JWT_TTL":                   "24 hours",
+		"REDIS_DB":                  "zero",
+		"PLATFORM_COST_DAILY_USD":   "5usd",
+		"PLATFORM_API_PER_MINUTE":   "sixty",
+		"QQ_ENABLED":                "yes please",
+		"VERIFICATION_RESEND_AFTER": "1 minute",
+	}
+	for key, value := range cases {
+		clearSecurityEnv(t)
+		t.Setenv("APP_ENV", "development")
+		t.Setenv(key, value)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), key) {
+			t.Fatalf("%s=%q silently accepted: %v", key, value, err)
+		}
+		t.Setenv(key, "")
+	}
+}
+
 func TestTrustedProxyCIDRsAreParsedAndInvalidValuesRejected(t *testing.T) {
 	clearSecurityEnv(t)
 	t.Setenv("APP_ENV", "development")

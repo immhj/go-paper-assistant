@@ -130,7 +130,8 @@ services:
         condition: service_healthy
     environment:
       APP_ADDR: :8080
-      APP_ENV: ${APP_ENV:-development}
+      # Fail-closed default: local development must opt in with APP_ENV=development in .env.
+      APP_ENV: ${APP_ENV:-production}
       TZ: ${TZ:-Asia/Shanghai}
       SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-15s}
       MYSQL_DSN: ${MYSQL_DSN:-paper:paper@tcp(mysql:3306)/paper_assistant?parseTime=true&charset=utf8mb4&loc=Local}
@@ -194,6 +195,12 @@ services:
       FULLTEXT_DIR: /app/data/fulltext
       PDFTOTEXT_BIN: ${PDFTOTEXT_BIN:-pdftotext}
       MAX_PDF_BYTES: ${MAX_PDF_BYTES:-52428800}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
     volumes:
