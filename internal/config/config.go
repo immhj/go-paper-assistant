@@ -81,11 +81,15 @@ type PlatformConfig struct {
 	EmailVerificationRequired bool
 	CostBreakerEnabled        bool
 
-	CostHourlyUSD      float64
-	CostDailyUSD       float64
-	APIPerMinute       int
-	LoginFailureLimit  int
-	LoginFailureWindow time.Duration
+	CostHourlyUSD float64
+	CostDailyUSD  float64
+	// APIPerMinute is the per-client-IP budget across all public /api/ routes.
+	APIPerMinute int
+	// LoginFailureLimit locks one email, LoginIPFailureLimit one client IP, after that many
+	// failed logins within LoginFailureWindow.
+	LoginFailureLimit   int
+	LoginIPFailureLimit int
+	LoginFailureWindow  time.Duration
 }
 
 type QQConfig struct {
@@ -180,8 +184,9 @@ func Load() (Config, error) {
 			EmailVerificationRequired:     r.envBool("PLATFORM_EMAIL_VERIFICATION_REQUIRED", true),
 			CostBreakerEnabled:            r.envBool("PLATFORM_COST_BREAKER_ENABLED", true),
 			CostHourlyUSD:                 r.envFloat("PLATFORM_COST_HOURLY_USD", 2), CostDailyUSD: r.envFloat("PLATFORM_COST_DAILY_USD", 10),
-			APIPerMinute: r.envInt("PLATFORM_API_PER_MINUTE", 30), LoginFailureLimit: r.envInt("PLATFORM_LOGIN_FAILURE_LIMIT", 5),
-			LoginFailureWindow: r.envDuration("PLATFORM_LOGIN_FAILURE_WINDOW", 15*time.Minute),
+			APIPerMinute: r.envInt("PLATFORM_API_PER_MINUTE", 60), LoginFailureLimit: r.envInt("PLATFORM_LOGIN_FAILURE_LIMIT", 5),
+			LoginIPFailureLimit: r.envInt("PLATFORM_LOGIN_IP_FAILURE_LIMIT", 20),
+			LoginFailureWindow:  r.envDuration("PLATFORM_LOGIN_FAILURE_WINDOW", 15*time.Minute),
 		},
 		QQ: QQConfig{
 			Enabled: r.envBool("QQ_ENABLED", false), AppID: strings.TrimSpace(os.Getenv("QQ_APP_ID")),
@@ -270,7 +275,8 @@ func validate(cfg Config) error {
 		return errors.New("verification security limits are invalid or weaker than the required defaults")
 	}
 	if cfg.Platform.CostHourlyUSD <= 0 || cfg.Platform.CostDailyUSD <= 0 || cfg.Platform.APIPerMinute < 1 ||
-		cfg.Platform.LoginFailureLimit < 1 || cfg.Platform.LoginFailureWindow <= 0 {
+		cfg.Platform.LoginFailureLimit < 1 || cfg.Platform.LoginIPFailureLimit < cfg.Platform.LoginFailureLimit ||
+		cfg.Platform.LoginFailureWindow <= 0 {
 		return errors.New("platform cost or security limits are invalid")
 	}
 	if cfg.SMTP.Mode != "log" && cfg.SMTP.Mode != "smtp" {

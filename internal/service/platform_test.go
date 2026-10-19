@@ -136,14 +136,14 @@ func TestLoginDoesNotDependOnVerificationStore(t *testing.T) {
 	fixture.register(t)
 	// The account login path has no verification Store call and remains available after the
 	// registration challenge has already been consumed.
-	result, err := fixture.platform.Login(context.Background(), "ALICE@example.com", "hunter2hunter")
+	result, err := fixture.platform.Login(context.Background(), "ALICE@example.com", "hunter2hunter", "203.0.113.1")
 	if err != nil || result.Token == "" {
 		t.Fatalf("valid login failed: result=%+v err=%v", result, err)
 	}
 	for _, attempt := range []struct{ email, password string }{
 		{"alice@example.com", "wrongwrong"}, {"missing@example.com", "hunter2hunter"},
 	} {
-		if _, err := fixture.platform.Login(context.Background(), attempt.email, attempt.password); !errors.Is(err, service.ErrInvalidCredentials) {
+		if _, err := fixture.platform.Login(context.Background(), attempt.email, attempt.password, "203.0.113.1"); !errors.Is(err, service.ErrInvalidCredentials) {
 			t.Fatalf("credentials %+v: want generic error, got %v", attempt, err)
 		}
 	}
@@ -169,10 +169,10 @@ func TestResetPasswordRevokesOldJWTAndNewLoginWorks(t *testing.T) {
 	if _, err := fixture.platform.Authenticate(context.Background(), oldToken); !errors.Is(err, service.ErrInvalidToken) {
 		t.Fatalf("old JWT survived password reset: %v", err)
 	}
-	if _, err := fixture.platform.Login(context.Background(), "alice@example.com", "hunter2hunter"); !errors.Is(err, service.ErrInvalidCredentials) {
+	if _, err := fixture.platform.Login(context.Background(), "alice@example.com", "hunter2hunter", "203.0.113.1"); !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Fatalf("old password still works: %v", err)
 	}
-	newLogin, err := fixture.platform.Login(context.Background(), "alice@example.com", "newpassword123")
+	newLogin, err := fixture.platform.Login(context.Background(), "alice@example.com", "newpassword123", "203.0.113.1")
 	if err != nil {
 		t.Fatalf("new password login: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestHistoricalUnverifiedAccountIsGrandfathered(t *testing.T) {
 	}
 	account := domain.Account{ID: 99, Username: "legacy", Email: "legacy@example.com", Nickname: "Legacy", PasswordHash: hash, Status: domain.AccountStatusActive, AuthVersion: 1}
 	platform := service.NewPlatform(grandfatherStore{PlatformStore: fixture.store, account: account}, fixture.jwt, fixture.verification, fixture.mailer)
-	login, err := platform.Login(context.Background(), account.Email, "hunter2hunter")
+	login, err := platform.Login(context.Background(), account.Email, "hunter2hunter", "203.0.113.1")
 	if err != nil {
 		t.Fatalf("grandfathered login rejected: %v", err)
 	}

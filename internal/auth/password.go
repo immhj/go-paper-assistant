@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -23,7 +24,20 @@ const (
 	argonThreads = 4
 	argonKeyLen  = 32
 	argonSaltLen = 16
+
+	// maxConcurrentArgon2 bounds peak hashing memory to maxConcurrentArgon2 * argonMemory
+	// (256 MiB). Without it a burst of parallel logins allocates 64 MiB each and can OOM the
+	// process; excess callers queue instead.
+	maxConcurrentArgon2 = 4
 )
+
+var argonSlots = make(chan struct{}, maxConcurrentArgon2)
+
+func argon2IDKey(password, salt []byte, time, memory uint32, threads uint8, keyLen uint32) []byte {
+	argonSlots <- struct{}{}
+	defer func() { <-argonSlots }()
+	return argon2.IDKey(password, salt, time, memory, threads, keyLen)
+}
 
 // HashPassword returns a PHC-style encoded argon2id hash:
 //
@@ -35,7 +49,7 @@ func HashPassword(password string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("read salt: %w", err)
 	}
-	hash := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	hash := argon2IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt),
@@ -51,8 +65,27 @@ func VerifyPassword(encoded, password string) bool {
 	if err != nil {
 		return false
 	}
-	got := argon2.IDKey([]byte(password), salt, time, memory, threads, keyLen)
+	got := argon2IDKey([]byte(password), salt, time, memory, threads, keyLen)
 	return subtle.ConstantTimeCompare(got, want) == 1
+}
+
+// dummyHash is a valid hash of a random secret, computed once on first use.
+var dummyHash = sync.OnceValue(func() string {
+	secret := make([]byte, 32)
+	_, _ = rand.Read(secret)
+	hash, err := HashPassword(string(secret))
+	if err != nil {
+		panic("auth: cannot build dummy password hash: " + err.Error())
+	}
+	return hash
+})
+
+// VerifyDummyPassword spends the same argon2id work as VerifyPassword and always returns false.
+// Login calls it when the account does not exist so response time does not reveal whether an
+// email is registered.
+func VerifyDummyPassword(password string) bool {
+	VerifyPassword(dummyHash(), password)
+	return false
 }
 
 func decodeArgon2(encoded string) (salt, hash []byte, memory uint32, time uint32, threads uint8, keyLen uint32, err error) {

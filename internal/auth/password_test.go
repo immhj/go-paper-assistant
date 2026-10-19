@@ -1,6 +1,10 @@
 package auth
 
-import "testing"
+import (
+	"sync"
+	"testing"
+	"time"
+)
 
 func TestHashPasswordRoundTrip(t *testing.T) {
 	encoded, err := HashPassword("correct horse battery staple")
@@ -39,5 +43,49 @@ func TestVerifyPasswordRejectsGarbageEncoding(t *testing.T) {
 	}
 	if VerifyPassword("", "whatever") {
 		t.Fatal("empty encoding verified")
+	}
+}
+
+func TestVerifyDummyPasswordAlwaysFails(t *testing.T) {
+	for _, password := range []string{"", "hunter2hunter", "correct horse battery staple"} {
+		if VerifyDummyPassword(password) {
+			t.Fatalf("dummy verification succeeded for %q", password)
+		}
+	}
+}
+
+func TestVerifyPasswordWaitsForAFreeArgon2Slot(t *testing.T) {
+	encoded, err := HashPassword("bounded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Occupy every slot, as maxConcurrentArgon2 in-flight logins would.
+	for i := 0; i < maxConcurrentArgon2; i++ {
+		argonSlots <- struct{}{}
+	}
+	done := make(chan bool, 1)
+	var once sync.Once
+	release := func() { once.Do(func() { <-argonSlots }) }
+	defer func() {
+		release()
+		for i := 1; i < maxConcurrentArgon2; i++ {
+			<-argonSlots
+		}
+	}()
+	go func() { done <- VerifyPassword(encoded, "bounded") }()
+
+	select {
+	case <-done:
+		t.Fatal("argon2 ran while every slot was taken")
+	case <-time.After(200 * time.Millisecond):
+	}
+	release()
+	select {
+	case ok := <-done:
+		if !ok {
+			t.Fatal("password did not verify after a slot freed up")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("verification never acquired the freed slot")
 	}
 }

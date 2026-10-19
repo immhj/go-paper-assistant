@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"paperassistant/internal/dao"
 	"paperassistant/internal/domain"
 	mailprovider "paperassistant/internal/provider/mail"
+	"paperassistant/internal/provider/ratelimit"
 	"paperassistant/internal/provider/verification"
 )
 
@@ -29,6 +31,11 @@ type Platform struct {
 	guestImportEnabled        bool
 	emailVerificationRequired bool
 	costBreakerEnabled        bool
+
+	loginLimiter    ratelimit.Store
+	loginEmailLimit int
+	loginIPLimit    int
+	loginWindow     time.Duration
 }
 
 type PlatformFeatures struct {
@@ -80,6 +87,14 @@ func WithEmailVerificationRequired(required bool) PlatformOption {
 	return func(p *Platform) { p.emailVerificationRequired = required }
 }
 
+// WithLoginThrottle locks an email after emailLimit failures and a client IP after ipLimit
+// failures within window. Without it Login is unthrottled (tests only).
+func WithLoginThrottle(store ratelimit.Store, emailLimit, ipLimit int, window time.Duration) PlatformOption {
+	return func(p *Platform) {
+		p.loginLimiter, p.loginEmailLimit, p.loginIPLimit, p.loginWindow = store, emailLimit, ipLimit, window
+	}
+}
+
 func WithPlatformClock(now func() time.Time) PlatformOption {
 	return func(p *Platform) {
 		if now != nil {
@@ -113,11 +128,19 @@ var (
 	ErrGuestImportDisabled   = errors.New("guest import disabled")
 	ErrGuestUnavailable      = errors.New("guest session unavailable")
 
+	ErrThrottled                     = errors.New("too many attempts")
 	ErrVerificationCodeInvalid       = verification.ErrInvalidCode
 	ErrVerificationExpired           = verification.ErrExpired
 	ErrVerificationAttemptsExhausted = verification.ErrAttemptsExhausted
 	ErrVerificationRateLimited       = verification.ErrResendTooSoon
 )
+
+// ThrottledError reports a rate-limit rejection together with how long the caller should wait.
+// It matches ErrThrottled with errors.Is.
+type ThrottledError struct{ RetryAfter time.Duration }
+
+func (e *ThrottledError) Error() string        { return ErrThrottled.Error() }
+func (e *ThrottledError) Is(target error) bool { return target == ErrThrottled }
 
 type AuthResult struct {
 	Token                string                   `json:"token"`
@@ -208,23 +231,73 @@ func (p *Platform) Register(ctx context.Context, registrationToken, code string,
 	return result, nil
 }
 
-// Login is intentionally independent of Redis so existing accounts can authenticate during a
-// Redis outage.
-func (p *Platform) Login(ctx context.Context, email, password string) (AuthResult, error) {
-	account, err := p.store.GetAccountByEmail(ctx, normalizeEmail(email))
-	if err != nil {
-		if errors.Is(err, dao.ErrNotFound) {
-			return AuthResult{}, ErrInvalidCredentials
-		}
+// Login throttles failed attempts per email and per client IP. The throttle fails open: if Redis
+// is unavailable existing accounts can still authenticate (the argon2 concurrency cap in auth
+// still bounds the cost of a flood), and the outage is logged.
+func (p *Platform) Login(ctx context.Context, email, password, clientIP string) (AuthResult, error) {
+	email = normalizeEmail(email)
+	emailKey, ipKey := ratelimit.Key("login:email", email), ratelimit.Key("login:ip", clientIP)
+	if err := p.checkLoginThrottle(ctx, emailKey, ipKey); err != nil {
 		return AuthResult{}, err
+	}
+
+	account, err := p.store.GetAccountByEmail(ctx, email)
+	if err != nil && !errors.Is(err, dao.ErrNotFound) {
+		return AuthResult{}, err
+	}
+	// Always spend one argon2id verification, even for unknown or disabled accounts, so
+	// response time does not reveal which emails are registered.
+	var passwordOK bool
+	if err == nil {
+		passwordOK = auth.VerifyPassword(account.PasswordHash, password)
+	} else {
+		passwordOK = auth.VerifyDummyPassword(password)
 	}
 	// Grandfathered migration compatibility: accounts created before email verification was
 	// introduced retain access when email_verified_at is NULL. Every account created by the new
 	// registration path is still necessarily verified by CreateAccountParams.
-	if account.Status != domain.AccountStatusActive || !auth.VerifyPassword(account.PasswordHash, password) {
+	if err != nil || !passwordOK || account.Status != domain.AccountStatusActive {
+		p.recordLoginFailure(ctx, emailKey, ipKey)
 		return AuthResult{}, ErrInvalidCredentials
 	}
+	if p.loginLimiter != nil {
+		if resetErr := p.loginLimiter.Reset(ctx, emailKey); resetErr != nil {
+			slog.Warn("login throttle reset failed", "error", resetErr)
+		}
+	}
 	return p.issue(account)
+}
+
+func (p *Platform) checkLoginThrottle(ctx context.Context, emailKey, ipKey string) error {
+	if p.loginLimiter == nil {
+		return nil
+	}
+	for _, check := range []struct {
+		key   string
+		limit int
+	}{{emailKey, p.loginEmailLimit}, {ipKey, p.loginIPLimit}} {
+		count, ttl, err := p.loginLimiter.Count(ctx, check.key)
+		if err != nil {
+			slog.Warn("login throttle unavailable; allowing attempt", "error", err)
+			return nil
+		}
+		if count >= int64(check.limit) {
+			return &ThrottledError{RetryAfter: ttl}
+		}
+	}
+	return nil
+}
+
+func (p *Platform) recordLoginFailure(ctx context.Context, emailKey, ipKey string) {
+	if p.loginLimiter == nil {
+		return
+	}
+	for _, key := range []string{emailKey, ipKey} {
+		if _, _, err := p.loginLimiter.Hit(ctx, key, p.loginWindow); err != nil {
+			slog.Warn("login throttle record failed", "error", err)
+			return
+		}
+	}
 }
 
 // RequestPasswordReset applies the same Redis cooldown and mail budgets to real and decoy

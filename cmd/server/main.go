@@ -25,6 +25,7 @@ import (
 	"paperassistant/internal/provider/guard"
 	mailprovider "paperassistant/internal/provider/mail"
 	"paperassistant/internal/provider/paperscraper"
+	"paperassistant/internal/provider/ratelimit"
 	"paperassistant/internal/provider/verification"
 	"paperassistant/internal/router"
 	"paperassistant/internal/service"
@@ -78,8 +79,10 @@ func main() {
 		fatal("configure web guard", err)
 	}
 
+	rateLimits := ratelimit.NewRedis(redisClient)
 	jwtIssuer := auth.NewJWT(cfg.Platform.JWTSecret, cfg.Platform.JWTTTL)
 	platformService := service.NewPlatform(store, jwtIssuer, verificationStore, mailer,
+		service.WithLoginThrottle(rateLimits, cfg.Platform.LoginFailureLimit, cfg.Platform.LoginIPFailureLimit, cfg.Platform.LoginFailureWindow),
 		service.WithOpenRegistration(cfg.Platform.OpenRegistrationEnabled),
 		service.WithGuestAccess(cfg.Platform.GuestAccessEnabled),
 		service.WithGuestDeepRead(cfg.Platform.GuestDeepReadEnabled),
@@ -94,7 +97,7 @@ func main() {
 		service.WithGuestDeepReadEnabled(cfg.Platform.GuestDeepReadEnabled),
 	)
 	adminService := service.NewAdmin(store, application.EmergencyStop())
-	platformController := controller.NewPlatform(platformService, cfg)
+	platformController := controller.NewPlatform(platformService, cfg).WithAPIRateLimit(rateLimits)
 	deps := router.Dependencies{
 		Config: cfg, Health: controller.NewHealth(adminService), Admin: controller.NewAdmin(adminService, cfg),
 		Platform: platformController, Chat: controller.NewChat(application, platformService).BindPlatformCSRF(platformController),

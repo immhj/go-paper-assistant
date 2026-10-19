@@ -4,25 +4,71 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"paperassistant/internal/auth"
 	"paperassistant/internal/config"
 	"paperassistant/internal/dao"
+	"paperassistant/internal/provider/ratelimit"
 	"paperassistant/internal/provider/verification"
 	"paperassistant/internal/service"
 )
 
 // Platform serves account, guest-session, profile, and platform administration APIs.
 type Platform struct {
-	service *service.Platform
-	config  config.Config
+	service    *service.Platform
+	config     config.Config
+	apiLimiter ratelimit.Store
 }
 
 func NewPlatform(value *service.Platform, cfg config.Config) *Platform {
 	return &Platform{service: value, config: cfg}
+}
+
+// WithAPIRateLimit enables the per-client-IP budget of cfg.Platform.APIPerMinute requests per
+// minute across all /api/ routes.
+func (p *Platform) WithAPIRateLimit(store ratelimit.Store) *Platform {
+	p.apiLimiter = store
+	return p
+}
+
+// APIRateLimit applies the per-IP budget to /api/ paths only; static assets and /healthz are
+// exempt. It fails open when the store is unavailable so a Redis outage does not take the API
+// down with it.
+func (p *Platform) APIRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p.apiLimiter == nil || !strings.HasPrefix(r.URL.Path, "/api/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ip := clientIP(r, p.config.TrustedProxyCIDRs)
+		count, ttl, err := p.apiLimiter.Hit(r.Context(), ratelimit.Key("api:ip", ip), time.Minute)
+		if err != nil {
+			slog.Warn("API rate limiter unavailable; allowing request", "error", err)
+			next.ServeHTTP(w, r)
+			return
+		}
+		if count > int64(p.config.Platform.APIPerMinute) {
+			setRetryAfter(w, ttl)
+			writeStatusError(w, http.StatusTooManyRequests, "RATE_LIMITED", "请求过于频繁，请稍后重试")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func setRetryAfter(w http.ResponseWriter, wait time.Duration) {
+	seconds := int(math.Ceil(wait.Seconds()))
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
 }
 
 func (p *Platform) secureCookies() bool { return p.config.Environment == "production" }
@@ -75,7 +121,7 @@ func (p *Platform) Login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &payload) {
 		return
 	}
-	result, err := p.service.Login(r.Context(), payload.Email, payload.Password)
+	result, err := p.service.Login(r.Context(), payload.Email, payload.Password, auth.ClientIPFromContext(r.Context()))
 	if err != nil {
 		writePlatformError(w, err, "登录失败，请稍后重试")
 		return
@@ -264,7 +310,11 @@ func (p *Platform) GuestMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func writePlatformError(w http.ResponseWriter, err error, fallback string) {
+	var throttled *service.ThrottledError
 	switch {
+	case errors.As(err, &throttled):
+		setRetryAfter(w, throttled.RetryAfter)
+		writeStatusError(w, http.StatusTooManyRequests, "RATE_LIMITED", "尝试次数过多，请稍后重试")
 	case errors.Is(err, service.ErrValidation):
 		writeStatusError(w, http.StatusBadRequest, "VALIDATION_ERROR", "请求参数无效")
 	case errors.Is(err, service.ErrEmailTaken):

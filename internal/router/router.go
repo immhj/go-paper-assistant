@@ -84,7 +84,11 @@ func New(deps Dependencies) http.Handler {
 	mux.Handle("GET /app/", http.StripPrefix("/app/", http.FileServer(http.Dir("web/app"))))
 	// Admin routes are deliberately absent here: they are served only by NewAdmin on the
 	// loopback-bound admin listener (ADR 0023), so /admin/ and /api/admin/* are 404 publicly.
-	return recoverer(logger(securityHeaders(mux)))
+	var handler http.Handler = mux
+	if deps.Platform != nil {
+		handler = deps.Platform.APIRateLimit(handler)
+	}
+	return recoverer(logger(securityHeaders(handler)))
 }
 
 // NewAdmin builds the handler for the admin listener. It must only be bound to a loopback
