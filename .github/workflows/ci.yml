@@ -97,8 +97,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Verify Redis test service
-        run: redis-cli -h 127.0.0.1 ping
       - name: Run MySQL and Redis integration tests
         run: go test -race -count=1 -tags=integration ./internal/dao/mysql ./internal/provider/ratelimit
 
