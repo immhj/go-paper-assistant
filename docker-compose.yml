@@ -140,6 +140,7 @@ services:
       APP_ENV: ${APP_ENV:-production}
       TZ: ${TZ:-Asia/Shanghai}
       SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-15s}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
       MYSQL_DSN: ${MYSQL_DSN:-paper:paper@tcp(mysql:3306)/paper_assistant?parseTime=true&charset=utf8mb4&loc=Local}
       MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-60s}
       REDIS_ADDR: ${REDIS_ADDR:-redis:6379}

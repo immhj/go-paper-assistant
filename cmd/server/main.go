@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"log/slog"
 	"math"
 	"net/http"
@@ -35,9 +34,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// JSON until config is loaded so even a config error is a parseable log line.
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	cfg, err := config.Load()
 	if err != nil {
 		fatal("load config", err)
+	}
+	if cfg.LogFormat == "text" {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 	store, err := mysqlstore.Open(ctx, cfg.MySQL)
 	if err != nil {
@@ -66,7 +70,7 @@ func main() {
 	mailer, err := mailprovider.NewSender(mailprovider.Config{
 		Environment: cfg.Environment, Mode: cfg.SMTP.Mode, Host: cfg.SMTP.Host, Port: cfg.SMTP.Port,
 		From: cfg.SMTP.From, AuthCode: cfg.SMTP.AuthCode, TLSMode: cfg.SMTP.TLSMode, Timeout: cfg.SMTP.Timeout,
-	}, log.New(os.Stderr, "mail: ", log.LstdFlags))
+	}, slog.NewLogLogger(slog.Default().With("component", "mail").Handler(), slog.LevelInfo))
 	if err != nil {
 		fatal("configure mail sender", err)
 	}
@@ -104,8 +108,19 @@ func main() {
 		Projects: controller.NewProjects(application, platformController),
 		Papers:   controller.NewPapers(application, platformController, cfg.FullText.MaxPDFBytes),
 	}
-	server := &http.Server{Addr: cfg.Address, Handler: router.New(deps), ReadHeaderTimeout: 10 * time.Second}
-	adminServer := &http.Server{Addr: cfg.AdminAddress, Handler: router.NewAdmin(deps), ReadHeaderTimeout: 10 * time.Second}
+	// No WriteTimeout on the public server: SSE chat responses legitimately stream for minutes.
+	// ReadTimeout bounds the whole request including a 50 MiB PDF upload body; IdleTimeout
+	// reclaims keep-alive connections held open by idle or slow clients.
+	server := &http.Server{
+		Addr: cfg.Address, Handler: router.New(deps),
+		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute,
+		MaxHeaderBytes: 64 << 10,
+	}
+	adminServer := &http.Server{
+		Addr: cfg.AdminAddress, Handler: router.NewAdmin(deps),
+		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second,
+		IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 64 << 10,
+	}
 
 	cleanupExpiredGuests(ctx, platformService)
 	go runGuestCleanup(ctx, platformService)

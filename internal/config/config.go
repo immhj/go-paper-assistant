@@ -17,8 +17,10 @@ type Config struct {
 	Address     string
 	// AdminAddress is the admin/metrics listener (ADR 0023). It must stay on loopback on the
 	// host; inside a container it binds all interfaces and compose publishes it to 127.0.0.1 only.
-	AdminAddress      string
-	ShutdownTimeout   time.Duration
+	AdminAddress    string
+	ShutdownTimeout time.Duration
+	// LogFormat is json (default, for log collection) or text (local development).
+	LogFormat         string
 	TrustedProxyCIDRs []netip.Prefix
 	MySQL             MySQLConfig
 	Redis             RedisConfig
@@ -152,6 +154,7 @@ func Load() (Config, error) {
 		Environment:       strings.ToLower(env("APP_ENV", EnvProduction)),
 		Address:           env("APP_ADDR", ":8080"),
 		AdminAddress:      env("ADMIN_ADDR", "127.0.0.1:9090"),
+		LogFormat:         strings.ToLower(env("LOG_FORMAT", "json")),
 		ShutdownTimeout:   r.envDuration("SHUTDOWN_TIMEOUT", 15*time.Second),
 		TrustedProxyCIDRs: trustedProxyCIDRs,
 		MySQL: MySQLConfig{
@@ -239,6 +242,9 @@ func Load() (Config, error) {
 func validate(cfg Config) error {
 	if cfg.MySQL.DSN == "" {
 		return errors.New("MYSQL_DSN is required")
+	}
+	if cfg.LogFormat != "json" && cfg.LogFormat != "text" {
+		return fmt.Errorf("LOG_FORMAT must be json or text, got %q", cfg.LogFormat)
 	}
 	if cfg.AdminAddress == cfg.Address {
 		return errors.New("ADMIN_ADDR must differ from APP_ADDR: admin routes are never served on the public listener")

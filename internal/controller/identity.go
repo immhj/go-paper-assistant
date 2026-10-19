@@ -140,6 +140,9 @@ func clearGuestCookie(w http.ResponseWriter, secure bool) {
 	})
 }
 
+// ClientIP returns the client address, honouring X-Forwarded-For only from trusted proxies.
+func ClientIP(r *http.Request, trusted []netip.Prefix) string { return clientIP(r, trusted) }
+
 func clientIP(r *http.Request, trusted []netip.Prefix) string {
 	remote := remoteIP(r.RemoteAddr)
 	if !isTrusted(remote, trusted) {

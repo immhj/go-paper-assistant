@@ -1,9 +1,12 @@
 package router
 
 import (
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -88,7 +91,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Platform != nil {
 		handler = deps.Platform.APIRateLimit(handler)
 	}
-	return recoverer(logger(securityHeaders(handler)))
+	return logger(deps.Config.TrustedProxyCIDRs, recoverer(securityHeaders(handler)))
 }
 
 // NewAdmin builds the handler for the admin listener. It must only be bound to a loopback
@@ -118,7 +121,7 @@ func NewAdmin(deps Dependencies) http.Handler {
 	mux.Handle("GET /admin/", basicAuth(deps.Config.Admin, adminMux))
 	mux.Handle("GET /api/admin/", basicAuth(deps.Config.Admin, adminMux))
 	mux.Handle("POST /api/admin/", basicAuth(deps.Config.Admin, adminMux))
-	return recoverer(logger(securityHeaders(mux)))
+	return logger(deps.Config.TrustedProxyCIDRs, recoverer(securityHeaders(mux)))
 }
 
 func basicAuth(cfg config.AdminConfig, next http.Handler) http.Handler {
@@ -145,13 +148,73 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-func logger(next http.Handler) http.Handler {
+// statusRecorder captures the status code and body size for the access log. It implements
+// http.Flusher explicitly because the SSE chat handler type-asserts w.(http.Flusher); without it
+// wrapping the writer would silently break streaming.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int64
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	if s.status == 0 {
+		s.status = code
+	}
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	if s.status == 0 {
+		s.status = http.StatusOK
+	}
+	n, err := s.ResponseWriter.Write(b)
+	s.bytes += int64(n)
+	return n, err
+}
+
+func (s *statusRecorder) Flush() {
+	if flusher, ok := s.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
+func newRequestID() string {
+	value := make([]byte, 8)
+	_, _ = rand.Read(value)
+	return hex.EncodeToString(value)
+}
+
+// logger writes one structured access-log line per request. It logs the path without the query
+// string so tokens or search terms in URLs never reach the logs. Every response carries
+// X-Request-ID so a user-reported error can be matched to its log line.
+func logger(trusted []netip.Prefix, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		if !strings.HasPrefix(r.URL.Path, "/healthz") {
-			slog.Info("http request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(start))
+		id := newRequestID()
+		w.Header().Set("X-Request-ID", id)
+		rec := &statusRecorder{ResponseWriter: w}
+		next.ServeHTTP(rec, r)
+		if strings.HasPrefix(r.URL.Path, "/healthz") {
+			return
 		}
+		status := rec.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		level := slog.LevelInfo
+		if status >= 500 {
+			level = slog.LevelError
+		} else if status >= 400 {
+			level = slog.LevelWarn
+		}
+		slog.Log(r.Context(), level, "http request",
+			"request_id", id, "method", r.Method, "path", r.URL.Path, "status", status,
+			"bytes", rec.bytes, "duration_ms", time.Since(start).Milliseconds(),
+			"client_ip", controller.ClientIP(r, trusted))
 	})
 }
 
