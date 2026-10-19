@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>论文助手</title>
+<style>
+:root{--bg:#f4f7fb;--panel:#fff;--panel-soft:#f8fafc;--ink:#172033;--muted:#667085;--line:#e3e8ef;--brand:#3568d4;--brand-dark:#2854b1;--good:#157f54;--bad:#b42318;--warn:#9a6700;--shadow:0 16px 48px rgba(30,47,77,.10);--radius:16px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.55 Inter,"Microsoft YaHei",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
+button,input{font:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.55}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid rgba(53,104,212,.28);outline-offset:2px}
+[hidden]{display:none!important}
+.app{height:100%;min-height:520px;display:flex;flex-direction:column}
+.topbar{height:68px;flex:none;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 max(22px,calc((100vw - 1080px)/2));position:relative;z-index:2}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(145deg,#477be6,#2855b9);color:#fff;display:grid;place-items:center;font-weight:800;box-shadow:0 7px 18px rgba(53,104,212,.24)}
+.brand-text{font-weight:750;font-size:17px;white-space:nowrap}.brand-text small{display:block;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:.03em}
+.identity{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.identity-copy{text-align:right;line-height:1.3;margin-right:3px;min-width:0}.identity-copy strong,.identity-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.identity-copy strong{font-size:13px}.identity-copy span{font-size:11px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:8px 12px;white-space:nowrap}.btn:hover:not(:disabled){background:var(--panel-soft);border-color:#cbd4e1}.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn.primary:hover:not(:disabled){background:var(--brand-dark)}.btn.danger{color:var(--bad)}.btn.linklike{border:0;background:transparent;color:var(--brand);padding:6px 4px}.btn.small{padding:7px 10px;font-size:12px}
+.shell{width:min(1120px,calc(100% - 30px));margin:0 auto;flex:1;min-height:0;padding:22px 0;display:flex;flex-direction:column;gap:12px}
+.notice{border:1px solid #cddaf6;background:#f4f7ff;color:#294e9b;border-radius:11px;padding:10px 13px;box-shadow:0 4px 15px rgba(30,47,77,.04)}.notice.error{border-color:#f0c5c1;background:#fff5f4;color:var(--bad)}.notice.success{border-color:#bfe1d2;background:#f1fbf6;color:var(--good)}
+.conversation-layout{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr);gap:12px}
+.conversation-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);min-height:0;display:flex;flex-direction:column;overflow:hidden}.conversation-head{padding:14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}.conversation-head h2{font-size:14px;margin:0}.conversation-list{padding:8px;overflow:auto;display:flex;flex-direction:column;gap:5px}.conversation-empty{color:var(--muted);font-size:12px;padding:14px 8px;text-align:center}.conversation-item{width:100%;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:10px;padding:9px 10px;text-align:left;display:block}.conversation-item:hover:not(:disabled){background:var(--panel-soft)}.conversation-item.active{border-color:#c9d7f5;background:#f2f6ff;color:#244f9f}.conversation-item strong,.conversation-item span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conversation-item strong{font-size:13px}.conversation-item span{font-size:11px;color:var(--muted);margin-bottom:2px}
+.chat-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.chat-head{padding:17px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}.chat-head h1{font-size:16px;margin:0}.chat-head p{font-size:12px;color:var(--muted);margin:2px 0 0}.state-pill{font-size:11px;color:var(--good);background:#edf9f3;border:1px solid #c8e8d7;padding:4px 8px;border-radius:999px;white-space:nowrap}
+.chat-log{flex:1;min-height:220px;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth;background:linear-gradient(180deg,#fff 0,#fbfcfe 100%)}
+.empty{margin:auto;max-width:460px;text-align:center;color:var(--muted);padding:32px 18px}.empty strong{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+.bubble{max-width:min(78%,690px);padding:10px 13px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}.bubble.user{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:4px}.bubble.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;box-shadow:0 3px 12px rgba(30,47,77,.05)}.bubble.error{border-color:#f0c5c1;color:var(--bad);background:#fff7f6}.bubble.thinking{color:var(--muted);font-size:13px}.bubble-meta{font-size:11px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}.bubble.error .bubble-meta{color:inherit;opacity:.78}
+.papers{align-self:flex-start;width:min(88%,740px);display:flex;flex-direction:column;gap:6px}
+.papers-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:0 2px 2px}.papers-toolbar .spacer{flex:1}
+.chip{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:2px 10px;font-size:12px}.chip:hover:not(:disabled){background:var(--panel-soft)}.chip[aria-pressed="true"]{background:#eef3ff;border-color:#c9d7f5;color:#244f9f}
+.paper{border:1px solid var(--line);border-radius:12px;background:#fff}
+.paper>summary{list-style:none;cursor:pointer;display:flex;align-items:flex-start;gap:8px;padding:9px 12px;border-radius:11px}.paper>summary::-webkit-details-marker{display:none}
+.paper>summary::before{content:"▸";flex:none;color:var(--muted);line-height:1.55;transition:transform .15s}.paper[open]>summary::before{transform:rotate(90deg)}
+.paper>summary:hover{background:var(--panel-soft)}.paper>summary:focus-visible{outline:3px solid rgba(53,104,212,.28);outline-offset:-2px}
+.paper-row{flex:1;min-width:0;display:flex;align-items:flex-start;gap:10px}
+.paper-title{flex:1;min-width:0;font-weight:650;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.paper[open] .paper-title{display:block}
+.paper-ordinal{color:var(--muted);font-variant-numeric:tabular-nums;margin-right:5px}
+.paper-badges{flex:none;max-width:48%;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px}
+.badge{font-size:11px;line-height:1.6;padding:0 7px;border-radius:999px;border:1px solid var(--line);background:var(--panel-soft);color:#475467;white-space:nowrap}.badge.rel-high{color:var(--good);background:#edf9f3;border-color:#c8e8d7}.badge.rel-medium{color:var(--warn);background:#fff8e6;border-color:#f1dfae}.badge.src-arxiv{color:#9b1c1c;background:#fdf1f1;border-color:#f0cccc}.badge.src-ieee{color:#00629b;background:#eef6fb;border-color:#c4dcec}
+.paper-body{padding:2px 12px 11px 30px}.paper-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}.paper-meta,.paper-reason{font-size:12px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}.paper-summary{font-size:13px;margin-top:6px;overflow-wrap:anywhere}.paper a{display:inline-block;color:var(--brand);font-size:12px;margin-top:6px}
+.composer{border-top:1px solid var(--line);padding:14px 16px;background:#fff}.composer-row{display:flex;gap:9px}.composer input{flex:1;min-width:0;border:1px solid #ccd5e1;border-radius:11px;padding:11px 13px;color:var(--ink);background:#fff}.composer .primary{padding-inline:19px}.composer-tip{font-size:11px;color:var(--muted);margin:6px 3px 0}
+dialog{border:0;padding:0;border-radius:16px;width:min(430px,calc(100vw - 28px));color:var(--ink);box-shadow:0 24px 80px rgba(20,32,55,.28)}dialog::backdrop{background:rgba(18,28,48,.48);backdrop-filter:blur(2px)}
+.modal{padding:24px}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}.modal-head h2{font-size:19px;margin:0}.modal-head p{font-size:12px;color:var(--muted);margin:3px 0 0}.close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;padding:0 3px}.field{margin-top:12px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;border:1px solid #ccd5e1;border-radius:9px;padding:10px 11px;color:var(--ink)}.code-input{font-size:22px!important;letter-spacing:.32em;text-align:center;font-variant-numeric:tabular-nums}.form-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px}.form-actions .primary{min-width:110px}.modal-message{font-size:12px;border-radius:9px;padding:8px 10px;margin-top:13px;background:#fff3f1;color:var(--bad);border:1px solid #f1cbc7}.modal-message.ok{background:#f0faf5;color:var(--good);border-color:#c5e4d4}.modal-links{display:flex;justify-content:center;gap:14px;margin-top:14px;flex-wrap:wrap}.countdown{font-size:12px;color:var(--muted);margin-top:8px;text-align:center}
+.loading-dot::after{content:"";display:inline-block;width:1em;text-align:left;animation:dots 1.2s steps(4,end) infinite}@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%,100%{content:"..."}}
+@media(max-width:720px){.topbar{height:auto;min-height:64px;padding:10px 14px;align-items:flex-start}.brand-text small{display:none}.identity{gap:5px;flex-wrap:wrap}.identity-copy{width:100%;order:-1}.btn{padding:7px 9px}.shell{width:100%;padding:10px}.conversation-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.conversation-card{max-height:154px}.conversation-list{flex-direction:row}.conversation-item{min-width:155px;width:155px}.chat-card{border-radius:13px}.chat-head{padding:13px 15px}.chat-log{padding:15px}.bubble{max-width:88%}.papers{width:94%}.paper-row{flex-direction:column;gap:4px}.paper-badges{max-width:none;justify-content:flex-start}.paper-body{padding-left:12px}.composer{padding:11px}.composer-tip{display:none}}
+@media(max-width:460px){.brand-text{font-size:15px}.logo{width:32px;height:32px}.identity-copy{display:none}.topbar{align-items:center}.identity{flex-wrap:nowrap}.chat-head p{display:none}.composer .primary{padding-inline:13px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand"><div class="logo" aria-hidden="true">研</div><div class="brand-text">论文助手<small>检索、筛选与精读</small></div></div>
+  <div class="identity" id="identity" aria-live="polite"></div>
+</header>
+<main class="shell">
+  <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+  <div class="conversation-layout">
+    <aside class="conversation-card" aria-labelledby="conversationHeading">
+      <div class="conversation-head"><h2 id="conversationHeading">会话</h2><button class="btn primary small" id="newConversation" type="button" disabled>新建</button></div>
+      <nav class="conversation-list" id="conversationList" aria-label="研究会话"><div class="conversation-empty">暂无会话</div></nav>
+    </aside>
+    <section class="chat-card" aria-labelledby="chatTitle">
+      <div class="chat-head"><div><h1 id="chatTitle">研究对话</h1></div><span class="state-pill" id="connectionState">正在连接</span></div>
+      <div class="chat-log" id="chatLog" aria-live="polite" aria-busy="true"></div>
+      <form class="composer" id="chatForm">
+        <div class="composer-row"><input id="chatText" maxlength="4000" autocomplete="off" aria-label="聊天消息" placeholder="输入消息…" disabled><button class="btn primary" id="chatSend" type="submit" disabled>发送</button></div>
+        <div class="composer-tip">访客可免费精读 1 次；登录后可无限精读并保留账号历史。</div>
+      </form>
+    </section>
+  </div>
+</main>
+</div>
+
+<dialog id="authDialog" aria-labelledby="modalTitle" aria-describedby="modalSubtitle">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="modalTitle">登录</h2><p id="modalSubtitle"></p></div><button class="close" id="modalClose" type="button" aria-label="关闭">×</button></div>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">邮箱</label><input id="loginEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="loginPassword">密码</label><input id="loginPassword" type="password" autocomplete="current-password" minlength="8" required></div>
+      <div class="form-actions"><button class="btn linklike" id="forgotButton" type="button">忘记密码</button><button class="btn primary" id="loginSubmit" type="submit">登录</button></div>
+      <div class="modal-links"><button class="btn linklike" id="toRegister" type="button">没有账号？注册</button></div>
+    </form>
+    <form id="registerDetailsForm" hidden>
+      <div class="field"><label for="registerNickname">昵称</label><input id="registerNickname" maxlength="64" autocomplete="nickname" required></div>
+      <div class="field"><label for="registerEmail">邮箱</label><input id="registerEmail" type="email" maxlength="191" autocomplete="email" required></div>
+      <div class="field"><label for="registerPassword">密码（至少 8 位）</label><input id="registerPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+      <div class="form-actions"><button class="btn linklike" data-auth-mode="login" type="button">返回登录</button><button class="btn primary" id="registerCodeSubmit" type="submit">发送验证码</button></div>
+    </form>
+    <form id="registerCodeForm" hidden>
+      <div class="field"><label for="registerCode">邮件中的 6 位验证码</label><input class="code-input" id="registerCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+      <div class="countdown" id="registerCountdown"></div>
+      <div class="form-actions"><button class="btn linklike" data-auth-mode="register-details" type="button">修改资料</button><button class="btn primary" id="registerVerifySubmit" type="submit">验证并注册</button></div>
+      <div class="modal-links"><button class="btn linklike" id="registerResend" type="button" disabled>重新发送验证码</button></div>
+    </form>
+    <form id="resetRequestForm" hidden>
+      <div class="field"><label for="resetEmail">账号邮箱</label><input id="resetEmail" type="email" maxlength="191" autocomplete="email" required></div>
+      <div class="form-actions"><button class="btn linklike" data-auth-mode="login" type="button">返回登录</button><button class="btn primary" id="resetCodeSubmit" type="submit">发送重置验证码</button></div>
+    </form>
+    <form id="resetCodeForm" hidden>
+      <div class="field"><label for="resetCode">邮件中的 6 位验证码</label><input class="code-input" id="resetCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+      <div class="field"><label for="resetPassword">新密码（至少 8 位）</label><input id="resetPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+      <div class="countdown" id="resetCountdown"></div>
+      <div class="form-actions"><button class="btn linklike" data-auth-mode="reset-request" type="button">更换邮箱</button><button class="btn primary" id="resetVerifySubmit" type="submit">重置密码</button></div>
+      <div class="modal-links"><button class="btn linklike" id="resetResend" type="button" disabled>重新发送验证码</button></div>
+    </form>
+    <div class="modal-message" id="modalMessage" role="status" aria-live="polite" hidden></div>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+const TOKEN_KEY='gradtools.token';
+const $=selector=>document.querySelector(selector);
+const state={session:null,conversations:[],activeConversationId:0,authMode:'login',authBusy:false,chatBusy:false,conversationBusy:false,profileBusy:false,registrationToken:'',resetToken:'',registrationDraft:null,resetEmail:'',countdownTimer:0,refreshPromise:null,
+  // Candidate-card view state survives the history re-render after every turn; it is page
+  // memory only and is reset when the signed-in actor changes.
+  paperView:{owner:'',open:new Set(),filter:new Map()},
+  project:{no:0,paperIds:new Set(),loadSeq:0}};
+
+class APIError extends Error{
+  constructor(message,code,httpStatus){super(message);this.name='APIError';this.code=code||'UNKNOWN_ERROR';this.httpStatus=httpStatus||0}
+}
+
+function getToken(){
+  const value=(localStorage.getItem(TOKEN_KEY)||'').trim();
+  if(!value||value==='null'||value==='undefined'){localStorage.removeItem(TOKEN_KEY);return ''}
+  return value;
+}
+function authHeaders(extra){
+  const headers=new Headers(extra||{}),token=getToken();
+  if(token)headers.set('Authorization','Bearer '+token);
+  return headers;
+}
+function setNotice(text,kind){
+  const el=$('#notice');
+  if(!text){el.hidden=true;el.textContent='';el.className='notice';return}
+  el.textContent=text;el.className='notice'+(kind?' '+kind:'');el.hidden=false;
+}
+function setConnection(text,good){const el=$('#connectionState');el.textContent=text;el.style.color=good?'var(--good)':'var(--warn)'}
+function describeError(code,fallback){
+  const messages={
+    INVALID_TOKEN:'登录凭证已过期，请重新登录。',INVALID_CREDENTIALS:'邮箱或密码错误。',VALIDATION_ERROR:'请检查填写内容是否完整且格式正确。',INVALID_JSON:'请求格式无效，请刷新页面后重试。',EMAIL_ALREADY_REGISTERED:'该邮箱已注册，请直接登录。',REGISTRATION_CLOSED:'注册暂未开放。',EMAIL_DELIVERY_UNAVAILABLE:'邮件服务暂时不可用，请稍后重试。',DEPENDENCY_UNAVAILABLE:'服务暂时不可用，请稍后重试。',VERIFICATION_CODE_INVALID:'验证码无效，请检查后重试。',VERIFICATION_EXPIRED:'验证码已过期，请重新发送。',VERIFICATION_ATTEMPTS_EXHAUSTED:'验证码尝试次数已用完，请稍后重新发送。',RATE_LIMITED:'请求过于频繁，请稍后重试。',GUEST_ACCESS_DISABLED:'访客访问暂未开放。',GUEST_SESSION_INVALID:'访客会话已失效，正在建立新会话。',GUEST_IMPORT_DISABLED:'访客历史导入暂未开放。',GUEST_TASK_IN_PROGRESS:'访客任务仍在处理中，请完成后再导入。',GUEST_DEEP_READ_IN_PROGRESS:'访客精读正在处理中，请等待完成。',GUEST_DEEP_READ_EXHAUSTED:'本访客的免费精读资格已使用，注册后可继续无限精读。',REQUEST_IN_PROGRESS:'已有请求正在处理中，请等待完成。',COST_BREAKER_OPEN:'模型服务本时段额度已用完，请稍后再试。',MODEL_BUSY:'模型服务当前繁忙，请稍后重试。',MODEL_TIMEOUT:'模型服务响应超时，请稍后重试。',EMERGENCY_STOPPED:'系统正在维护，请稍后再试。',ACTOR_REQUIRED:'无法建立会话，请刷新页面。',STREAMING_UNSUPPORTED:'当前服务无法建立流式连接。',CONFIRMATION_REQUIRED:'需要明确确认后才能导入。',IDEMPOTENCY_KEY_REQUIRED:'导入请求缺少幂等标识，请重试。',NOT_FOUND:'请求的资源不存在。',INTERNAL_ERROR:'处理请求时出错，请稍后重试。'};
+  return messages[code]||fallback||'请求失败，请稍后重试。';
+}
+async function parseResponse(response){
+  if(response.status===204)return null;
+  const type=response.headers.get('Content-Type')||'';
+  if(type.includes('application/json'))return response.json().catch(()=>({}));
+  const text=await response.text().catch(()=>'');
+  return text?{error:text}:{};
+}
+async function request(path,options){
+  const config=Object.assign({credentials:'same-origin'},options||{});
+  config.headers=authHeaders(config.headers);
+  const response=await fetch(path,config);
+  const data=await parseResponse(response);
+  if(!response.ok){
+    const code=data&&(data.code||data.status)||'HTTP_'+response.status;
+    if(response.status===401&&code==='INVALID_TOKEN'){
+      localStorage.removeItem(TOKEN_KEY);state.session=null;
+      setNotice('登录已过期，账号凭证已清除；你可以继续以访客身份使用。','error');
+    }
+    throw new APIError(describeError(code,data&&data.error),code,response.status);
+  }
+  return data;
+}
+async function jsonRequest(path,method,body,extraHeaders){
+  const headers=Object.assign({'Content-Type':'application/json'},extraHeaders||{});
+  return request(path,{method:method||'POST',headers,body:JSON.stringify(body)});
+}
+
+function makeButton(text,className,onClick){const button=document.createElement('button');button.type='button';button.className=className;button.textContent=text;button.addEventListener('click',onClick);return button}
+function renderIdentity(){
+  const root=$('#identity');root.replaceChildren();
+  const session=state.session;
+  if(!session){root.append(makeButton('登录','btn small',()=>openAuth('login')));return}
+  const copy=document.createElement('div');copy.className='identity-copy';
+  const strong=document.createElement('strong'),sub=document.createElement('span');
+  if(session.actorType==='account'){
+    const account=session.account||{};
+    strong.textContent=account.nickname||account.email||'账号用户';sub.textContent=(account.email||'')+' · 无限精读';
+    copy.append(strong,sub);root.append(copy);
+    root.append(makeButton('改昵称','btn small',editNickname));
+    root.append(makeButton('退出','btn small',logout));
+  }else{
+    const guest=session.guest||{};
+    const deepReadEnabled=!session.features||session.features.guestDeepRead!==false;
+    const remaining=deepReadEnabled&&guest.deepReadState==='available'?'1/1':'0/1';
+    strong.textContent='访客';sub.textContent='精读资格 '+remaining;
+    copy.append(strong,sub);root.append(copy);
+    root.append(makeButton('登录','btn small',()=>openAuth('login')));
+    root.append(makeButton('注册','btn primary small',()=>openAuth('register-details')));
+  }
+}
+function setConversationControlsDisabled(disabled){
+  $('#newConversation').disabled=disabled;
+  document.querySelectorAll('.conversation-item').forEach(button=>{button.disabled=disabled});
+}
+function sessionReady(){return Boolean(state.session&&(state.session.actorType==='guest'||state.session.actorType==='account'))}
+function interactionBusy(){return state.chatBusy||state.authBusy||state.profileBusy||state.conversationBusy}
+function updateControls(){
+  const disabled=!sessionReady()||interactionBusy();
+  $('#chatText').disabled=disabled;$('#chatSend').disabled=disabled;setConversationControlsDisabled(disabled);
+}
+function applyActiveConversation(item){
+  if(!item||!item.id)return;
+  const active=Object.assign({},item,{active:true});
+  const rest=state.conversations.filter(conversation=>conversation&&Number(conversation.id)!==Number(active.id)).map(conversation=>Object.assign({},conversation,{active:false}));
+  renderConversations([active].concat(rest));renderHistory([]);
+}
+function renderConversations(items){
+  state.conversations=Array.isArray(items)?items:[];
+  const root=$('#conversationList');root.replaceChildren();
+  const active=state.conversations.find(item=>item&&item.active)||null;
+  state.activeConversationId=active&&Number(active.id)||0;
+  $('#chatTitle').textContent=active&&active.title?active.title:'研究对话';
+  if(!state.conversations.length){
+    const empty=document.createElement('div');empty.className='conversation-empty';empty.textContent='暂无会话，发送消息或点击新建即可开始';root.append(empty);return;
+  }
+  state.conversations.forEach(item=>{
+    if(!item||!item.id)return;
+    const button=document.createElement('button');button.type='button';button.className='conversation-item'+(item.active?' active':'');button.dataset.conversationId=String(item.id);button.setAttribute('aria-pressed',item.active?'true':'false');
+    const number=document.createElement('span');number.textContent='会话 #'+(item.conversationNo||'—');
+    const title=document.createElement('strong');title.textContent=item.title||'未命名会话';
+    button.append(number,title);button.addEventListener('click',()=>activateConversation(Number(item.id)));root.append(button);
+  });
+  updateControls();
+}
+function showEmpty(){
+  $('#chatLog').replaceChildren();
+}
+function isNearChatBottom(log){return log.scrollHeight-log.clientHeight-log.scrollTop<=64}
+function restoreChatScroll(log,follow,previousTop){if(follow)log.scrollTop=log.scrollHeight;else log.scrollTop=Math.min(previousTop,Math.max(0,log.scrollHeight-log.clientHeight))}
+function addBubble(kind,text,isError,follow){
+  const log=$('#chatLog'),shouldFollow=follow===undefined?isNearChatBottom(log):follow,empty=log.querySelector('.empty');if(empty)empty.remove();
+  const bubble=document.createElement('div');bubble.className='bubble '+kind+(isError?' error':'');bubble.textContent=String(text||'');log.append(bubble);if(shouldFollow)log.scrollTop=log.scrollHeight;return bubble;
+}
+function formatDuration(value){
+  const ms=Math.max(0,Number(value)||0),seconds=ms/1000;
+  if(seconds<60)return seconds.toFixed(seconds<10?1:0)+' 秒';
+  const minutes=Math.floor(seconds/60),remaining=Math.floor(seconds%60);return minutes+' 分 '+String(remaining).padStart(2,'0')+' 秒';
+}
+function addDuration(bubble,elapsedMs){
+  if(!bubble||!(Number(elapsedMs)>=0))return;
+  const existing=bubble.querySelector('.bubble-meta');if(existing)existing.remove();
+  const meta=document.createElement('div');meta.className='bubble-meta';meta.textContent='本次任务耗时 '+formatDuration(elapsedMs);bubble.append(meta);
+}
+function parseAgentTrace(message){
+  const value=message&&message.agentTrace;if(!value)return null;
+  if(typeof value==='object')return value;
+  try{return JSON.parse(value)}catch{return null}
+}
+function addTaskDurationSummary(trace){
+  if(!trace||!(Number(trace.durationMs)>=0))return;
+  const summary=document.createElement('div');summary.className='bubble-meta';summary.textContent='本次任务耗时 '+formatDuration(trace.durationMs);$('#chatLog').append(summary);
+}
+function createThinkingBubble(){
+  const bubble=addBubble('bot','',false);bubble.classList.add('thinking');
+  const label=document.createElement('span');label.className='loading-dot';label.textContent='思考中';
+  const elapsed=document.createElement('span');elapsed.className='bubble-meta';bubble.append(label,elapsed);
+  const thinking={bubble,label,elapsed,startedAt:performance.now(),serverElapsed:0,timer:0};
+  const tick=()=>{if(!thinking.bubble.isConnected)return;const local=performance.now()-thinking.startedAt;thinking.elapsed.textContent='已耗时 '+formatDuration(Math.max(local,thinking.serverElapsed));};
+  tick();thinking.timer=window.setInterval(tick,250);return thinking;
+}
+function updateThinking(thinking,text,elapsedMs){
+  if(!thinking)return;
+  thinking.serverElapsed=Math.max(thinking.serverElapsed,Number(elapsedMs)||0);
+  if(text)thinking.label.textContent=String(text);
+}
+function removeThinking(thinking){if(!thinking)return;window.clearInterval(thinking.timer);thinking.bubble.remove();}
+function safeURL(value){try{const url=new URL(String(value||''),location.href);return url.protocol==='http:'||url.protocol==='https:'?url.href:''}catch{return ''}}
+// OpenAlex hands out direct IEEE PDF paths (/ielx7/<pub>/<issue>/<arnumber>.pdf) whose issue segment can be
+// stale (e.g. an early-access issue number), so opening them shows a blank 404 page. The stamp page resolves the current path itself.
+function fullTextURL(value){
+  const href=safeURL(value);if(!href)return '';
+  const url=new URL(href),match=/^\/iel[a-z]*\d*\/\d+\/\d+\/0*(\d+)\.pdf$/i.exec(url.pathname);
+  return url.hostname==='ieeexplore.ieee.org'&&match?'https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber='+match[1]:href;
+}
+// Candidate list (CONTEXT.md 候选列表/候选卡片): compact collapsible cards in the stored order.
+// The toolbar filter only hides cards; it never reorders them or touches ordinals.
+const relevanceLabels={high:'高',medium:'中',low:'低'};
+const relevanceFilters=[['high','高'],['medium','中'],['low','低'],['unknown','未判断']];
+function relevanceKey(paper){return relevanceLabels[paper.relevance]?paper.relevance:'unknown'}
+function addPapers(items,follow){
+  if(!Array.isArray(items))return;
+  const papers=items.filter(paper=>paper&&typeof paper==='object');if(!papers.length)return;
+  const log=$('#chatLog'),shouldFollow=follow===undefined?isNearChatBottom(log):follow;
+  // A list is identified by its conversation and ordinals, which stay stable across re-renders.
+  const listKey=state.activeConversationId+':'+papers.map((paper,index)=>paper.ordinal||index+1).join(',');
+  const wrap=document.createElement('div');wrap.className='papers';wrap.setAttribute('role','group');wrap.setAttribute('aria-label','候选论文 '+papers.length+' 篇');
+  const cards=papers.map((paper,index)=>paperCard(paper,index,listKey));
+  if(papers.length>1)wrap.append(papersToolbar(papers,cards,listKey));
+  wrap.append(...cards);log.append(wrap);applyPaperFilter(wrap,cards,listKey);
+  if(shouldFollow)log.scrollTop=log.scrollHeight;
+}
+function papersToolbar(papers,cards,listKey){
+  const bar=document.createElement('div');bar.className='papers-toolbar';
+  const total=document.createElement('span');total.textContent='共 '+papers.length+' 篇';bar.append(total);
+  const counts={};papers.forEach(paper=>{const key=relevanceKey(paper);counts[key]=(counts[key]||0)+1});
+  const chip=(key,text)=>{
+    const button=makeButton(text,'chip',()=>{state.paperView.filter.set(listKey,key);applyPaperFilter(bar.parentElement,cards,listKey)});
+    button.dataset.filter=key;return button;
+  };
+  bar.append(chip('all','全部'));
+  relevanceFilters.forEach(([key,label])=>{if(counts[key])bar.append(chip(key,(key==='unknown'?label:label+'相关')+' '+counts[key]))});
+  const spacer=document.createElement('span');spacer.className='spacer';bar.append(spacer);
+  const toggle=makeButton('全部展开','btn linklike',()=>{
+    const visible=cards.filter(card=>!card.hidden),open=!visible.every(card=>card.open);
+    visible.forEach(card=>{card.open=open});
+  });
+  toggle.dataset.role='toggle-all';bar.append(toggle);
+  return bar;
+}
+function applyPaperFilter(wrap,cards,listKey){
+  const filter=state.paperView.filter.get(listKey)||'all';
+  cards.forEach(card=>{card.hidden=filter!=='all'&&card.dataset.relevance!==filter});
+  if(!wrap)return;
+  wrap.querySelectorAll('.chip').forEach(button=>button.setAttribute('aria-pressed',button.dataset.filter===filter?'true':'false'));
+  updateToggleAll(wrap,cards);
+}
+function updateToggleAll(wrap,cards){
+  const toggle=wrap&&wrap.querySelector('[data-role="toggle-all"]');if(!toggle)return;
+  const visible=cards.filter(card=>!card.hidden);
+  toggle.textContent=visible.length&&visible.every(card=>card.open)?'全部收起':'全部展开';
+}
+function paperCard(paper,index,listKey){
+  const ordinal=paper.ordinal||index+1,openKey=listKey+'|'+(paper.paperId||ordinal);
+  const card=document.createElement('details');card.className='paper';card.dataset.relevance=relevanceKey(paper);
+  const summary=document.createElement('summary'),row=document.createElement('span');row.className='paper-row';
+  const title=document.createElement('span');title.className='paper-title';
+  const number=document.createElement('span');number.className='paper-ordinal';number.textContent='#'+ordinal;
+  title.append(number,document.createTextNode(paper.title||'论文'));
+  row.append(title,paperBadges(paper));summary.append(row);card.append(summary);
+  let built=false;
+  const build=()=>{if(built)return;built=true;card.append(paperBody(paper,ordinal))};
+  card.addEventListener('toggle',()=>{
+    if(card.open){build();state.paperView.open.add(openKey)}else state.paperView.open.delete(openKey);
+    const wrap=card.parentElement;if(wrap)updateToggleAll(wrap,Array.from(wrap.querySelectorAll(':scope>.paper')));
+  });
+  if(state.paperView.open.has(openKey)){build();card.open=true}
+  return card;
+}
+// Collapsed row: relevance plus every matched rank system in short form (CONTEXT.md 质量信号
+// requires all matched ranks to be listed). IF values and venue names wait for the expanded body.
+function paperBadges(paper){
+  const box=document.createElement('span');box.className='paper-badges';
+  const badge=(text,className,title)=>{const el=document.createElement('span');el.className='badge'+(className?' '+className:'');el.textContent=text;if(title)el.title=title;box.append(el)};
+  const source=paperSource(paper);
+  if(source)badge(sourceLabels[source],'src-'+source,'数据源：'+sourceLabels[source]);
+  const key=relevanceKey(paper);
+  badge(key==='unknown'?'相关性未判断':relevanceLabels[key]+'相关','rel-'+key);
+  compactQuality(paper).forEach(part=>badge(part.text,'',part.title));
+  return box;
+}
+// 数据源 (CONTEXT.md). Records stored before IEEE existed lack `source` but carry an arXiv ID.
+const sourceLabels={arxiv:'arXiv',ieee:'IEEE'};
+function paperSource(paper){
+  const source=String(paper.source||'').toLowerCase();
+  if(sourceLabels[source])return source;
+  return !source&&paper.arxivId?'arxiv':'';
+}
+function compactQuality(paper){
+  const label=String(paper.qualityLabel||'').trim();if(!label)return [];
+  if(paper.qualityTier!=='venue')return [{text:label}];
+  // Older stored labels end the CAS segment with "*"; it is stripped so no caveat marker remains.
+  const parts=label.split(' · ').filter(part=>/^(CCF |JCR |中科院 )/.test(part)).map(part=>({text:part.replace(/（.*）$/,'').replace(/区\*$/,'区')}));
+  return parts.length?parts:[{text:label.split(' · ')[0]}];
+}
+function paperBody(paper,ordinal){
+  const body=document.createElement('div');body.className='paper-body';
+  const line=(className,text)=>{const el=document.createElement('div');el.className=className;el.textContent=text;body.append(el)};
+  const metaLine=paperMetaLine(paper);if(metaLine)body.append(metaLine);
+  // A note starting with "*" is the retired CAS caveat still present in older messages; hide it.
+  if(paper.qualityNote&&!String(paper.qualityNote).startsWith('*'))line('paper-reason',paper.qualityNote);
+  if(paper.summaryZh)line('paper-summary',paper.summaryZh);
+  else if(paper.abstractMissing)line('paper-reason','数据源未提供摘要，未让模型推测内容，也未判断相关性。');
+  if(paper.relevanceReason)line('paper-reason','相关性依据：'+paper.relevanceReason);
+  if(paper.tldr)line('paper-summary','TLDR：'+paper.tldr);
+  const href=fullTextURL(paper.openAccessPdfUrl),landing=safeURL(paper.landingUrl);
+  if(href||landing){
+    const links=document.createElement('div');
+    const link=(url,text)=>{const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=text;return a};
+    if(href)links.append(link(href,'打开全文'));
+    if(landing){if(href)links.append(document.createTextNode(' · '));links.append(link(landing,'在 IEEE 打开'+(paper.doi?'（DOI '+paper.doi+'）':'')))}
+    body.append(links);
+  }
+  // Shortcuts only fill the composer; the user sends them, so a misclick never spends a read.
+  const actions=document.createElement('div');actions.className='paper-actions';
+  [['查看摘要','查看第'+ordinal+'篇完整摘要'],['快速精读','快速精读第'+ordinal+'篇'],['深度精读','深度精读第'+ordinal+'篇']].forEach(([text,command])=>{
+    const button=makeButton(text,'btn small',()=>fillComposer(command));button.title='填入输入框：'+command;actions.append(button);
+  });
+  if(paper.paperId)actions.append(projectPaperButton(paper));
+  body.append(actions);
+  // Upload is offered wherever no open PDF is known, matching the read prompt's instruction.
+  if(paper.paperId&&(paper.source==='ieee'||!href)){const controls=privateFullTextControls(paper);if(controls)body.append(controls)}
+  return body;
+}
+function fillComposer(text){const input=$('#chatText');input.value=text;if(!input.disabled){input.focus();input.setSelectionRange(text.length,text.length)}}
+// 加入项目 is a direct, idempotent project mutation rather than a chat command (Spec 0004 §5.5).
+function projectPaperButton(paper){
+  const button=makeButton('加入项目','btn small',async()=>{
+    const no=state.project.no,id=String(paper.paperId);if(!no)return;
+    button.disabled=true;button.textContent='正在加入…';
+    try{
+      await request('/api/projects/'+encodeURIComponent(no)+'/papers/'+encodeURIComponent(id),{method:'PUT'});
+      if(state.project.no===no)state.project.paperIds.add(id);
+    }catch(error){setNotice('加入项目失败：'+error.message,'error')}
+    finally{refreshProjectButtons()}
+  });
+  button.dataset.projectPaperId=String(paper.paperId);updateProjectButton(button);
+  return button;
+}
+function updateProjectButton(button){
+  const project=state.project;button.hidden=!project.no;
+  const added=project.paperIds.has(button.dataset.projectPaperId);
+  button.disabled=added;button.textContent=added?'✓ 已在项目中':'加入项目';
+}
+function refreshProjectButtons(){document.querySelectorAll('[data-project-paper-id]').forEach(updateProjectButton)}
+async function collectPages(path,maxPages){
+  const items=[];let cursor='';
+  for(let page=0;page<maxPages;page++){
+    const data=await request(path+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+    if(data&&Array.isArray(data.items))items.push(...data.items);
+    cursor=data&&data.nextCursor||'';if(!cursor)break;
+  }
+  return items;
+}
+// Marks cards whose paper is already in the current project. Failures only hide the button.
+async function loadProjectPapers(){
+  const seq=++state.project.loadSeq;
+  let no=0;const ids=new Set();
+  try{
+    const projects=await collectPages('/api/projects?status=active&limit=100',5);
+    const selected=projects.find(project=>project&&project.selected);no=selected&&Number(selected.projectNo)||0;
+    if(no)(await collectPages('/api/projects/'+no+'/papers?status=active&limit=100',10)).forEach(item=>{if(item&&item.paperId)ids.add(String(item.paperId))});
+  }catch{no=0}
+  if(seq!==state.project.loadSeq)return;
+  state.project.no=no;state.project.paperIds=ids;refreshProjectButtons();
+}
+// Quality label and relevance on one line.
+function paperMetaLine(paper){
+  const parts=paper.qualityLabel?String(paper.qualityLabel).split(' · ').map(part=>part.replace(/^(中科院 \d区)\*$/,'$1')):[];
+  if(paper.relevance!==undefined&&paper.relevance!==null)parts.push('相关性 '+(relevanceLabels[paper.relevance]||paper.relevance));
+  if(!parts.length)return null;
+  const line=document.createElement('div');line.className='paper-meta';line.textContent=parts.join(' · ');
+  return line;
+}
+const privateFullTextStatus=new Map();
+// Private full text (ADR 0019): an account uploads a PDF it obtained through its own access.
+// The server keeps only the verified text for that account; the PDF is discarded.
+function privateFullTextControls(paper){
+  const box=document.createElement('div');box.className='paper-reason';
+  // Guests get no hint here; asking to read explains login and upload (read.go).
+  if(!state.session||state.session.actorType!=='account')return null;
+  const status=document.createElement('span');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  const input=document.createElement('input');input.type='file';input.accept='application/pdf,.pdf';input.hidden=true;
+  input.setAttribute('aria-label','选择论文 PDF 文件');
+  const accountId=state.session.account&&state.session.account.id||'';
+  const paperKey=accountId+':'+String(paper.paperId);
+  const path='/api/papers/'+encodeURIComponent(String(paper.paperId))+'/private-fulltext';
+  const upload=makeButton('上传全文 PDF','btn small',()=>input.click());
+  const remove=makeButton('删除我的私有全文','btn linklike',async()=>{
+    remove.disabled=true;status.textContent=' 正在删除…';
+    try{await request(path,{method:'DELETE'});privateFullTextStatus.set(paperKey,Promise.resolve(false));status.textContent=' 已删除私有全文（已生成的精读结果保留）。';remove.hidden=true}
+    catch(error){status.textContent=' '+(error.code==='FULLTEXT_NOT_FOUND'?'你还没有上传这篇论文的全文。':error.message)}
+    finally{remove.disabled=false}
+  });
+  remove.hidden=true;
+  input.addEventListener('change',async()=>{
+    const file=input.files&&input.files[0];input.value='';if(!file)return;
+    upload.disabled=true;status.textContent=' 正在上传并校验全文…';
+    try{
+      await request(path,{method:'PUT',headers:{'Content-Type':'application/pdf'},body:file});
+      privateFullTextStatus.set(paperKey,Promise.resolve(true));remove.hidden=false;
+      status.textContent=' 全文已校验，可以说“快速精读第'+(paper.ordinal||'')+'篇”或“深度精读第'+(paper.ordinal||'')+'篇”。';
+    }catch(error){status.textContent=' 上传失败：'+error.message}
+    finally{upload.disabled=false}
+  });
+  box.append(upload,document.createTextNode(' '),remove,input,status);
+  // One status request per paper per page load, shared by every card showing that paper.
+  if(!privateFullTextStatus.has(paperKey)){
+    privateFullTextStatus.set(paperKey,request(path).then(data=>Boolean(data&&data.fullText&&data.fullText.present)).catch(()=>false));
+  }
+  privateFullTextStatus.get(paperKey).then(present=>{
+    if(!present||!box.isConnected||remove.hidden===false)return;
+    remove.hidden=false;if(!status.textContent)status.textContent=' 已有你上传并校验的私有全文，可直接精读。';
+  });
+  return box;
+}
+function normalizePapers(value){
+  if(Array.isArray(value))return value;
+  if(typeof value==='string'){try{const parsed=JSON.parse(value);return Array.isArray(parsed)?parsed:[]}catch{return []}}
+  return [];
+}
+function renderHistory(messages){
+  const log=$('#chatLog'),previousTop=log.scrollTop,follow=isNearChatBottom(log);log.replaceChildren();
+  if(!Array.isArray(messages)||!messages.length){showEmpty();return}
+  let pendingTrace=null;
+  messages.forEach(message=>{
+    if(!message||typeof message!=='object')return;
+    if(message.role==='user'){
+      addTaskDurationSummary(pendingTrace);pendingTrace=parseAgentTrace(message);
+    }
+    const content=typeof message.content==='string'?message.content:'';
+    if(content)addBubble(message.role==='user'?'user':'bot',content,false,follow);
+    addPapers(normalizePapers(message.shownPapers),follow);
+  });
+  addTaskDurationSummary(pendingTrace);
+  if(!log.childNodes.length)showEmpty();
+  restoreChatScroll(log,follow,previousTop);
+}
+
+function resetPaperViewForActor(){
+  const session=state.session||{},actor=session.actorType==='account'?session.account:session.guest;
+  const owner=(session.actorType||'')+':'+(actor&&actor.id||'');
+  if(owner===state.paperView.owner)return;
+  state.paperView={owner,open:new Set(),filter:new Map()};state.project={no:0,paperIds:new Set(),loadSeq:state.project.loadSeq+1};
+}
+async function loadSession(){
+  try{return await request('/api/session')}
+  catch(error){if(error.code==='INVALID_TOKEN')return request('/api/session');throw error}
+}
+async function refreshAll(force){
+  if(state.refreshPromise){
+    if(!force)return state.refreshPromise;
+    await state.refreshPromise;
+    return refreshAll(false);
+  }
+  let retryAsGuest=false,actorReady=false;
+  state.refreshPromise=(async()=>{
+    $('#chatLog').setAttribute('aria-busy','true');setConnection('正在同步',false);
+    try{
+      state.session=await loadSession();actorReady=state.session&&(state.session.actorType==='guest'||state.session.actorType==='account');renderIdentity();
+      resetPaperViewForActor();
+      const results=await Promise.all([request('/api/conversations'),request('/api/history')]);renderConversations(results[0]);renderHistory(results[1]);setConnection('已连接',true);
+      loadProjectPapers();
+    }catch(error){
+      if(error.code==='INVALID_TOKEN')retryAsGuest=true;
+      if(!actorReady){state.session=null;renderConversations([])}
+      renderIdentity();setConnection('连接异常',false);setNotice(error.message||'页面加载失败，请稍后刷新。','error');
+      if(!$('#chatLog').childNodes.length)showEmpty();
+    }finally{
+      $('#chatLog').setAttribute('aria-busy','false');updateControls();
+    }
+  })();
+  try{await state.refreshPromise}finally{state.refreshPromise=null}
+  if(retryAsGuest)return refreshAll(false);
+}
+
+function modalMessage(text,ok){const el=$('#modalMessage');el.textContent=text||'';el.className='modal-message'+(ok?' ok':'');el.hidden=!text}
+function clearModalMessage(){modalMessage('',false)}
+const authForms={login:'#loginForm','register-details':'#registerDetailsForm','register-code':'#registerCodeForm','reset-request':'#resetRequestForm','reset-code':'#resetCodeForm'};
+function setAuthMode(mode){
+  state.authMode=mode;clearModalMessage();
+  Object.entries(authForms).forEach(([name,selector])=>{$(selector).hidden=name!==mode});
+  const titles={login:['登录','登录后可无限精读并同步账号历史。'],'register-details':['创建账号','填写完整资料，我们会向邮箱发送验证码。'],'register-code':['验证邮箱','输入 6 位验证码，验证成功后自动登录。'],'reset-request':['重置密码','验证码会发送到账号邮箱；响应不会透露邮箱是否存在。'],'reset-code':['设置新密码','输入验证码并设置至少 8 位的新密码。']};
+  $('#modalTitle').textContent=titles[mode][0];$('#modalSubtitle').textContent=titles[mode][1];
+  const focusTarget={login:'#loginEmail','register-details':'#registerNickname','register-code':'#registerCode','reset-request':'#resetEmail','reset-code':'#resetCode'}[mode];
+  setTimeout(()=>$(focusTarget).focus(),0);
+}
+function openAuth(mode){
+  setAuthMode(mode||'login');const dialog=$('#authDialog');if(!dialog.open)dialog.showModal();
+}
+function closeAuth(){if($('#authDialog').open)$('#authDialog').close();clearModalMessage()}
+function setAuthBusy(value){
+  state.authBusy=value;
+  ['#loginSubmit','#registerCodeSubmit','#registerVerifySubmit','#resetCodeSubmit','#resetVerifySubmit'].forEach(selector=>$(selector).disabled=value);
+  updateCountdownButtons();updateControls();
+}
+function updateCountdownButtons(){
+  const now=Date.now();
+  const registrationReady=state.registrationToken&&now>=Number($('#registerResend').dataset.readyAt||0);
+  const resetReady=state.resetToken&&now>=Number($('#resetResend').dataset.readyAt||0);
+  $('#registerResend').disabled=state.authBusy||!registrationReady;$('#resetResend').disabled=state.authBusy||!resetReady;
+}
+function startCountdown(kind,resendAfter,expiresAt){
+  const button=$(kind==='register'?'#registerResend':'#resetResend');
+  const output=$(kind==='register'?'#registerCountdown':'#resetCountdown');
+  const resendTime=Date.parse(resendAfter||''),expiryTime=Date.parse(expiresAt||'');
+  button.dataset.readyAt=String(Math.max(Number.isFinite(resendTime)?resendTime:0,Date.now()+60000));
+  button.dataset.expiresAt=String(Number.isFinite(expiryTime)?expiryTime:0);
+  if(state.countdownTimer)clearInterval(state.countdownTimer);
+  const tick=()=>{
+    const resendSeconds=Math.max(0,Math.ceil((Number(button.dataset.readyAt)-Date.now())/1000));
+    const expirySeconds=Math.max(0,Math.ceil((Number(button.dataset.expiresAt)-Date.now())/1000));
+    const minutes=String(Math.floor(expirySeconds/60)).padStart(2,'0'),seconds=String(expirySeconds%60).padStart(2,'0');
+    const validity=expirySeconds?'验证码有效期剩余 '+minutes+':'+seconds:'验证码已过期，请重新发送。';
+    output.textContent=validity+(resendSeconds?' · '+resendSeconds+' 秒后可重发。':' · 现在可以重发。');
+    updateCountdownButtons();
+    if(!expirySeconds&&!resendSeconds&&state.countdownTimer){clearInterval(state.countdownTimer);state.countdownTimer=0}
+  };
+  tick();state.countdownTimer=setInterval(tick,1000);
+}
+function sixDigits(input){input.value=input.value.replace(/\D/g,'').slice(0,6);return input.value.length===6}
+async function runAuth(action){
+  if(state.authBusy)return;
+  if(state.chatBusy||state.conversationBusy||state.profileBusy){modalMessage('请等待当前操作完成后再变更账号。',false);return}
+  setAuthBusy(true);clearModalMessage();
+  try{await action()}catch(error){modalMessage(error.message||'请求失败，请稍后重试。',false)}finally{setAuthBusy(false)}
+}
+
+async function completeLogin(result,successText){
+  if(!result||!result.token)throw new APIError('登录响应无效，请稍后重试。','INTERNAL_ERROR');
+  localStorage.setItem(TOKEN_KEY,result.token);state.session=null;
+  let importMessage=result.guestUpgrade&&result.guestUpgrade.upgraded?'注册成功，访客聊天记录已转移到账号。':'';
+  if(result.guestImportAvailable===true){
+    if(confirm('检测到当前浏览器有访客聊天记录，是否导入到账号？')){
+      try{await jsonRequest('/api/guest/import','POST',{confirm:true},{'Idempotency-Key':randomIdempotencyKey()});importMessage='访客聊天记录已导入。'}
+      catch(error){importMessage='已登录，但访客记录导入失败：'+error.message}
+    }
+  }
+  closeAuth();setNotice(importMessage||successText,'success');await refreshAll(true);
+}
+function randomIdempotencyKey(){
+  if(globalThis.crypto&&typeof crypto.randomUUID==='function')return crypto.randomUUID();
+  if(globalThis.crypto&&typeof crypto.getRandomValues==='function'){const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
+  return 'guest-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+}
+
+$('#loginForm').addEventListener('submit',event=>{event.preventDefault();runAuth(async()=>{
+  const result=await jsonRequest('/api/login','POST',{email:$('#loginEmail').value.trim(),password:$('#loginPassword').value});
+  await completeLogin(result,'登录成功。');
+})});
+$('#registerDetailsForm').addEventListener('submit',event=>{event.preventDefault();runAuth(async()=>{
+  const draft={nickname:$('#registerNickname').value.trim(),email:$('#registerEmail').value.trim(),password:$('#registerPassword').value};state.registrationDraft=draft;
+  const result=await jsonRequest('/api/register/code','POST',draft);state.registrationToken=result.registrationToken||'';
+  if(!state.registrationToken)throw new APIError('验证码请求响应无效。','INTERNAL_ERROR');
+  $('#registerCode').value='';setAuthMode('register-code');startCountdown('register',result.resendAfter,result.expiresAt);modalMessage('验证码已发送，请检查邮箱。',true);
+})});
+$('#registerCodeForm').addEventListener('submit',event=>{event.preventDefault();runAuth(async()=>{
+  const code=$('#registerCode').value.trim();if(!/^\d{6}$/.test(code))throw new APIError('请输入 6 位数字验证码。','VALIDATION_ERROR');
+  const result=await jsonRequest('/api/register','POST',{registrationToken:state.registrationToken,code});
+  await completeLogin(result,'注册成功，已自动登录。');
+})});
+$('#registerResend').addEventListener('click',()=>runAuth(async()=>{
+  if(!state.registrationDraft)throw new APIError('注册资料已丢失，请重新填写。','VALIDATION_ERROR');
+  const result=await jsonRequest('/api/register/code','POST',state.registrationDraft);state.registrationToken=result.registrationToken||'';$('#registerCode').value='';startCountdown('register',result.resendAfter,result.expiresAt);modalMessage('新的验证码已发送。',true);
+}));
+$('#resetRequestForm').addEventListener('submit',event=>{event.preventDefault();runAuth(async()=>{
+  state.resetEmail=$('#resetEmail').value.trim();const result=await jsonRequest('/api/password-reset/code','POST',{email:state.resetEmail});state.resetToken=result.resetToken||'';
+  if(!state.resetToken)throw new APIError('验证码请求响应无效。','INTERNAL_ERROR');
+  $('#resetCode').value='';$('#resetPassword').value='';setAuthMode('reset-code');startCountdown('reset',result.resendAfter,result.expiresAt);modalMessage('如该邮箱可用于重置，你将收到验证码。',true);
+})});
+$('#resetCodeForm').addEventListener('submit',event=>{event.preventDefault();runAuth(async()=>{
+  const code=$('#resetCode').value.trim(),newPassword=$('#resetPassword').value;if(!/^\d{6}$/.test(code))throw new APIError('请输入 6 位数字验证码。','VALIDATION_ERROR');
+  await jsonRequest('/api/password-reset','POST',{resetToken:state.resetToken,code,newPassword});localStorage.removeItem(TOKEN_KEY);setAuthMode('login');$('#loginEmail').value=state.resetEmail;$('#loginPassword').value='';modalMessage('密码已重置，请使用新密码登录。',true);await refreshAll(true);
+})});
+$('#resetResend').addEventListener('click',()=>runAuth(async()=>{
+  const result=await jsonRequest('/api/password-reset/code','POST',{email:state.resetEmail});state.resetToken=result.resetToken||'';$('#resetCode').value='';startCountdown('reset',result.resendAfter,result.expiresAt);modalMessage('新的验证码已发送。',true);
+}));
+$('#registerCode').addEventListener('input',event=>{if(sixDigits(event.target)&&!state.authBusy)$('#registerCodeForm').requestSubmit()});
+$('#resetCode').addEventListener('input',event=>{sixDigits(event.target)});
+$('#forgotButton').addEventListener('click',()=>{if($('#loginEmail').value)$('#resetEmail').value=$('#loginEmail').value;setAuthMode('reset-request')});
+$('#toRegister').addEventListener('click',()=>setAuthMode('register-details'));
+document.querySelectorAll('[data-auth-mode]').forEach(button=>button.addEventListener('click',()=>setAuthMode(button.dataset.authMode)));
+$('#modalClose').addEventListener('click',closeAuth);
+$('#authDialog').addEventListener('click',event=>{if(event.target===$('#authDialog'))closeAuth()});
+
+async function editNickname(){
+  if(state.chatBusy||state.conversationBusy||state.authBusy){setNotice('请等待当前操作完成后再修改账号资料。','error');return}
+  if(state.profileBusy)return;state.profileBusy=true;updateControls();
+  try{
+    const me=await request('/api/me');const nickname=prompt('请输入新昵称（最多 64 个字符）：',me.nickname||'');if(nickname===null)return;
+    const value=nickname.trim();if(!value)throw new APIError('昵称不能为空。','VALIDATION_ERROR');
+    await jsonRequest('/api/me','POST',{nickname:value});setNotice('昵称已更新。','success');await refreshAll(true);
+  }catch(error){setNotice(error.message,'error');if(error.code==='INVALID_TOKEN')await refreshAll(true)}finally{state.profileBusy=false;updateControls()}
+}
+async function logout(){
+  if(interactionBusy()){setNotice('请等待当前操作完成后再退出。','error');return}
+  localStorage.removeItem(TOKEN_KEY);state.session=null;updateControls();setNotice('已退出账号，你可以继续以访客身份使用。','success');await refreshAll(true)
+}
+async function createConversation(){
+  if(interactionBusy())return;
+  state.conversationBusy=true;updateControls();
+  try{
+    const ensured=await jsonRequest('/api/projects/ensure-active','POST',{});
+    if(ensured&&ensured.created){
+      const conversation=ensured.conversation||{};
+      applyActiveConversation({id:conversation.conversationNo,conversationNo:conversation.conversationNo,title:conversation.title,status:conversation.status,active:true});
+    }else{
+      const created=await jsonRequest('/api/conversations','POST',{});applyActiveConversation(created);
+    }
+    await refreshAll(true);
+  }catch(error){setNotice(error.message||'新建会话失败。','error')}
+  finally{state.conversationBusy=false;updateControls()}
+}
+async function activateConversation(conversationID){
+  if(!conversationID||conversationID===state.activeConversationId||interactionBusy())return;
+  state.conversationBusy=true;updateControls();setConnection('正在切换',false);
+  try{
+    const activated=await jsonRequest('/api/conversations/'+encodeURIComponent(conversationID)+'/activate','POST',{});applyActiveConversation(activated);await refreshAll(true);
+  }catch(error){setNotice(error.message||'切换会话失败。','error');setConnection('切换失败',false)}
+  finally{state.conversationBusy=false;updateControls()}
+}
+$('#newConversation').addEventListener('click',createConversation);
+function processSSEFrame(frame,onEvent){
+  const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).replace(/^ /,'')).join('\n');
+  if(!data||data==='[DONE]')return data==='[DONE]';
+  try{onEvent(JSON.parse(data))}catch{throw new APIError('收到无法解析的流式响应。','STREAM_PARSE_ERROR')}
+  return false;
+}
+async function sendChat(text){
+  if(interactionBusy())return;
+  state.chatBusy=true;updateControls();setNotice('',false);addBubble('user',text,false,true);
+  const thinking=createThinkingBubble();let streamError=null,terminalBubble=null;
+  const controller=new AbortController();
+  const timeoutID=setTimeout(()=>controller.abort(),300000);
+  try{
+    const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',signal:controller.signal,headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({text})});
+    if(!response.ok){
+      const data=await parseResponse(response),code=data&&(data.code||data.status)||'HTTP_'+response.status;
+      if(response.status===401&&code==='INVALID_TOKEN'){localStorage.removeItem(TOKEN_KEY);state.session=null;setNotice('登录已过期，账号凭证已清除；你可以继续以访客身份发送消息。','error')}
+      throw new APIError(describeError(code,data&&data.error),code,response.status);
+    }
+    if(!response.body)throw new APIError('浏览器无法读取流式响应。','STREAMING_UNSUPPORTED');
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',doneEvent=false,resultBubble=null,renderedDelta=false;
+    const appendResult=(content,newMessage)=>{
+      if(!content)return;
+      const log=$('#chatLog'),follow=isNearChatBottom(log);
+      removeThinking(thinking);
+      if(newMessage)resultBubble=null;
+      if(!resultBubble)resultBubble=addBubble('bot','',false,follow);
+      terminalBubble=resultBubble;resultBubble.textContent+=String(content);if(follow)log.scrollTop=log.scrollHeight;
+    };
+    const onEvent=event=>{
+      if(!event||typeof event!=='object')return;
+      const code=event.code||event.status;
+      if(event.status==='started'||event.status==='progress'){updateThinking(thinking,event.content,event.elapsedMs);return}
+      if(event.status==='completed'){removeThinking(thinking);addDuration(terminalBubble,event.elapsedMs);return}
+      if(event.status==='error'||event.error){
+        removeThinking(thinking);const message=describeError(event.code,event.error);streamError=new APIError(message,event.code||'INTERNAL_ERROR');terminalBubble=addBubble('bot',message,true);addDuration(terminalBubble,event.elapsedMs);
+        if(event.code==='GUEST_DEEP_READ_EXHAUSTED'){setNotice(message,'error');openAuth('register-details')}
+        return;
+      }
+      if(event.status==='delta'&&event.content){appendResult(event.content,event.newMessage===true);renderedDelta=true}
+      if((event.status==='message'||event.status==='result')&&event.content){removeThinking(thinking);terminalBubble=addBubble('bot',event.content,false);if(Number(event.elapsedMs)>=0)addDuration(terminalBubble,event.elapsedMs)}
+      if(Array.isArray(event.papers))addPapers(event.papers);
+      if(code==='GUEST_DEEP_READ_EXHAUSTED'){streamError=new APIError(describeError(code,event.error),code);openAuth('register-details')}
+    };
+    while(!doneEvent){
+      const part=await reader.read();if(part.done)break;
+      buffer+=decoder.decode(part.value,{stream:true});buffer=buffer.replace(/\r\n/g,'\n');
+      let boundary;
+      while((boundary=buffer.indexOf('\n\n'))>=0){
+        const frame=buffer.slice(0,boundary);buffer=buffer.slice(boundary+2);renderedDelta=false;doneEvent=processSSEFrame(frame,onEvent);
+        if(renderedDelta)await new Promise(resolve=>requestAnimationFrame(resolve));
+        if(doneEvent)break;
+      }
+    }
+    buffer+=decoder.decode();
+    if(buffer.trim()&&!doneEvent)doneEvent=processSSEFrame(buffer,onEvent);
+    if(!doneEvent)throw new APIError('连接意外中断，已同步当前聊天记录。','STREAM_INCOMPLETE');
+  }catch(error){
+    if(error&&error.name==='AbortError')error=new APIError('处理时间过长，连接已取消，请稍后重试。','REQUEST_TIMEOUT');
+    streamError=error;removeThinking(thinking);terminalBubble=addBubble('bot','连接失败：'+(error.message||'请稍后重试。'),true);setNotice(error.message||'聊天请求失败。','error');
+  }finally{
+    clearTimeout(timeoutID);removeThinking(thinking);
+    await refreshAll(true);
+    state.chatBusy=false;updateControls();$('#chatText').focus();
+    if(streamError)setNotice(streamError.message,'error');
+  }
+}
+$('#chatForm').addEventListener('submit',event=>{
+  event.preventDefault();const input=$('#chatText'),text=input.value.trim();if(!text)return;
+  if(interactionBusy()){setNotice('请等待当前请求完成后再发送消息。','error');return}
+  input.value='';sendChat(text);
+});
+
+showEmpty();renderIdentity();refreshAll();
+</script>
+</body>
+</html>

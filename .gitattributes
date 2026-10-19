@@ -1,0 +1,4 @@
+# Keep LF in the repo and working tree: these files run inside Linux containers / on the server.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.sqlite3 binary

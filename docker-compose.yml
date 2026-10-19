@@ -1,0 +1,205 @@
+name: paper-assistant
+
+services:
+  mysql:
+    image: mysql:8.4.6
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-paper_assistant}
+      MYSQL_USER: ${MYSQL_USER:-paper}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-paper}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "${MYSQL_BIND:-127.0.0.1}:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docs/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7.4.1-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command: >-
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+      exec redis-server --save "" --appendonly no --requirepass "$$REDIS_PASSWORD";
+      else exec redis-server --save "" --appendonly no; fi'
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # Redis web UI. Not started by plain `docker compose up`.
+  # Start explicitly: docker compose --profile tools up -d redisinsight
+  redisinsight:
+    image: redis/redisinsight:2.70.1
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      RI_REDIS_HOST: redis
+      RI_REDIS_PORT: 6379
+      RI_REDIS_ALIAS: paper-assistant
+      RI_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      RI_ACCEPT_TERMS_AND_CONDITIONS: "true"
+    # Bound to loopback because Redis Insight provides full Redis access.
+    ports:
+      - "${REDISINSIGHT_BIND:-127.0.0.1}:${REDISINSIGHT_PORT:-5540}:5540"
+    volumes:
+      - redisinsight-data:/data
+
+  # Database web UI. Not started by plain `docker compose up`.
+  # Start explicitly: docker compose --profile tools up -d adminer
+  adminer:
+    image: adminer:6.0.1-standalone
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DESIGN: ${ADMINER_DESIGN:-pepa-linha-dark}
+      TZ: ${TZ:-Asia/Shanghai}
+    # Bound to loopback on purpose: Adminer is full database access with no
+    # extra authentication layer of its own. Do not expose it publicly.
+    ports:
+      - "${ADMINER_BIND:-127.0.0.1}:${ADMINER_PORT:-8081}:8080"
+
+  paperscraper:
+    build:
+      context: ./services/paperscraper
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PAPERSCRAPER_HOST: 0.0.0.0
+      PAPERSCRAPER_PORT: 8090
+      PAPERSCRAPER_MAX_RESULTS: ${PAPERSCRAPER_MAX_RESULTS:-100}
+      PAPERSCRAPER_MAX_SCAN_RESULTS: ${PAPERSCRAPER_MAX_SCAN_RESULTS:-500}
+      PAPERSCRAPER_ARXIV_DELAY_SECONDS: ${PAPERSCRAPER_ARXIV_DELAY_SECONDS:-3}
+      PAPERSCRAPER_ARXIV_RETRIES: ${PAPERSCRAPER_ARXIV_RETRIES:-3}
+      PAPERSCRAPER_CITATIONS: ${PAPERSCRAPER_CITATIONS:-false}
+      # IEEE source (ADR 0018). Empty keys run keyless with smaller daily budgets.
+      OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
+      PAPERSCRAPER_IEEE_TIMEOUT_SECONDS: ${PAPERSCRAPER_IEEE_TIMEOUT_SECONDS:-30}
+      # Python requests/urllib pick these up automatically. Empty means direct.
+      # Needed where arXiv is only reachable through a proxy; 127.0.0.1 inside the
+      # container is the container itself, so point at host.docker.internal.
+      HTTP_PROXY: ${PAPERSCRAPER_HTTP_PROXY:-}
+      HTTPS_PROXY: ${PAPERSCRAPER_HTTPS_PROXY:-}
+      NO_PROXY: localhost,127.0.0.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      paperscraper:
+        condition: service_healthy
+    environment:
+      APP_ADDR: :8080
+      APP_ENV: ${APP_ENV:-development}
+      TZ: ${TZ:-Asia/Shanghai}
+      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-15s}
+      MYSQL_DSN: ${MYSQL_DSN:-paper:paper@tcp(mysql:3306)/paper_assistant?parseTime=true&charset=utf8mb4&loc=Local}
+      MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-60s}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_DIAL_TIMEOUT: ${REDIS_DIAL_TIMEOUT:-5s}
+      REDIS_READ_TIMEOUT: ${REDIS_READ_TIMEOUT:-3s}
+      REDIS_WRITE_TIMEOUT: ${REDIS_WRITE_TIMEOUT:-3s}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
+      SMTP_MODE: ${SMTP_MODE:-log}
+      SMTP_HOST: ${SMTP_HOST:-smtp.qq.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_AUTH_CODE: ${SMTP_AUTH_CODE:-}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-implicit}
+      SMTP_TIMEOUT: ${SMTP_TIMEOUT:-15s}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_TTL: ${JWT_TTL:-24h}
+      VERIFICATION_PEPPER: ${VERIFICATION_PEPPER:-}
+      VERIFICATION_TTL: ${VERIFICATION_TTL:-10m}
+      VERIFICATION_MAX_ATTEMPTS: ${VERIFICATION_MAX_ATTEMPTS:-5}
+      VERIFICATION_RESEND_AFTER: ${VERIFICATION_RESEND_AFTER:-60s}
+      VERIFICATION_EMAIL_HOURLY_LIMIT: ${VERIFICATION_EMAIL_HOURLY_LIMIT:-5}
+      VERIFICATION_IP_HOURLY_LIMIT: ${VERIFICATION_IP_HOURLY_LIMIT:-20}
+      VERIFICATION_GLOBAL_HOURLY_LIMIT: ${VERIFICATION_GLOBAL_HOURLY_LIMIT:-200}
+      VERIFICATION_RATE_WINDOW: ${VERIFICATION_RATE_WINDOW:-1h}
+      PLATFORM_OPEN_REGISTRATION_ENABLED: ${PLATFORM_OPEN_REGISTRATION_ENABLED:-true}
+      PLATFORM_GUEST_ACCESS_ENABLED: ${PLATFORM_GUEST_ACCESS_ENABLED:-true}
+      PLATFORM_GUEST_DEEP_READ_ENABLED: ${PLATFORM_GUEST_DEEP_READ_ENABLED:-true}
+      PLATFORM_GUEST_IMPORT_ENABLED: ${PLATFORM_GUEST_IMPORT_ENABLED:-true}
+      PLATFORM_EMAIL_VERIFICATION_REQUIRED: ${PLATFORM_EMAIL_VERIFICATION_REQUIRED:-true}
+      PLATFORM_COST_BREAKER_ENABLED: ${PLATFORM_COST_BREAKER_ENABLED:-true}
+      PLATFORM_COST_HOURLY_USD: ${PLATFORM_COST_HOURLY_USD:-2}
+      PLATFORM_COST_DAILY_USD: ${PLATFORM_COST_DAILY_USD:-10}
+      PLATFORM_API_PER_MINUTE: ${PLATFORM_API_PER_MINUTE:-30}
+      PLATFORM_LOGIN_FAILURE_LIMIT: ${PLATFORM_LOGIN_FAILURE_LIMIT:-5}
+      PLATFORM_LOGIN_FAILURE_WINDOW: ${PLATFORM_LOGIN_FAILURE_WINDOW:-15m}
+      QQ_ENABLED: ${QQ_ENABLED:-false}
+      QQ_APP_ID: ${QQ_APP_ID:-}
+      QQ_APP_SECRET: ${QQ_APP_SECRET:-}
+      QQ_API_BASE: ${QQ_API_BASE:-https://api.bot.qq.com}
+      QQ_TOKEN_URL: ${QQ_TOKEN_URL:-https://api.bot.qq.com/app/getAppAccessToken}
+      QQ_GATEWAY_URL: ${QQ_GATEWAY_URL:-}
+      QQ_INTENTS: ${QQ_INTENTS:-33554432}
+      QQ_RECONNECT_MIN: ${QQ_RECONNECT_MIN:-2s}
+      QQ_RECONNECT_MAX: ${QQ_RECONNECT_MAX:-30s}
+      PAPERSCRAPER_URL: ${PAPERSCRAPER_URL:-http://paperscraper:8090}
+      PAPERSCRAPER_RESULT_LIMIT: ${PAPERSCRAPER_RESULT_LIMIT:-10}
+      PAPERSCRAPER_TIMEOUT: ${PAPERSCRAPER_TIMEOUT:-90s}
+      DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:-https://api.deepseek.com}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      DEEPSEEK_TIMEOUT: ${DEEPSEEK_TIMEOUT:-180s}
+      DEEPSEEK_PEAK_INPUT_PER_M: ${DEEPSEEK_PEAK_INPUT_PER_M:-0.30}
+      DEEPSEEK_PEAK_CACHE_HIT_PER_M: ${DEEPSEEK_PEAK_CACHE_HIT_PER_M:-0.006}
+      DEEPSEEK_PEAK_OUTPUT_PER_M: ${DEEPSEEK_PEAK_OUTPUT_PER_M:-1.20}
+      FULLTEXT_DIR: /app/data/fulltext
+      PDFTOTEXT_BIN: ${PDFTOTEXT_BIN:-pdftotext}
+      MAX_PDF_BYTES: ${MAX_PDF_BYTES:-52428800}
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    volumes:
+      - fulltext-data:/app/data/fulltext
+
+volumes:
+  mysql-data:
+  redisinsight-data:
+  fulltext-data:

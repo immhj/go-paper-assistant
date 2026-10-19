@@ -1,0 +1,14 @@
+.git
+.env
+.idea
+.vscode
+prototype
+node_modules
+__pycache__
+*.py[cod]
+.venv
+*.log
+/server.exe
+data/backups/*
+data/fulltext/*
+!data/fulltext/.gitkeep

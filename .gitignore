@@ -1,0 +1,14 @@
+.env
+*.log
+/server.exe
+data/backups/*
+__pycache__/
+*.py[cod]
+bin/
+data/fulltext/*
+!data/fulltext/.gitkeep
+.pytest_cache/
+*.exe
+# release artifacts produced by scripts/release.ps1
+/release/
+*.tar.gz

@@ -1,0 +1,37 @@
+Third-party data vendored in this directory
+===========================================
+
+ccf_rank_list.tsv
+  Derived from data/dataGen.js of https://github.com/WenyanLiu/CCFrank4dblp
+  at commit 86e59cc009ac9e6e124d5874900d705f708e4daa (CCF list updated 2026-04-06).
+  Copyright (c) 2019-2023 WenyanLiu (https://github.com/WenyanLiu/CCFrank4dblp)
+  License: MIT
+
+impact_factor.sqlite3
+  Copied unchanged from the impact_factor 1.1.4 wheel,
+  https://github.com/suqingdong/impact_factor
+  Copyright (c) suqingdong
+  License: MIT
+  The data is a third-party compilation of JCR and CAS (中科院) partitions. The CAS
+  partition carries no edition, year, subject category or TOP flag and is shown only
+  with that caveat.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

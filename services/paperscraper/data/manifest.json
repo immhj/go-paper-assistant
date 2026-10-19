@@ -1,0 +1,23 @@
+{
+  "ccf": {
+    "file": "ccf_rank_list.tsv",
+    "sha256": "af142bacfbc8644d53ff27e69bbc556253c57d3af305176945b13b00312bf3de",
+    "rows": 721,
+    "upstream": "https://github.com/WenyanLiu/CCFrank4dblp",
+    "license": "MIT",
+    "commit": "86e59cc009ac9e6e124d5874900d705f708e4daa",
+    "upstreamFile": "data/dataGen.js",
+    "upstreamSha256": "47cd41ba712ab56844e4aebff800d8c957af038e47474cfffc4ad0bf23b4b0cb",
+    "version": "ccfrank4dblp@86e59cc"
+  },
+  "impactFactor": {
+    "file": "impact_factor.sqlite3",
+    "sha256": "1f20d89f758c36b17721385c90a4ad8797280a6696fe1475a48fb8bce6eaacb8",
+    "upstream": "https://github.com/suqingdong/impact_factor",
+    "license": "MIT",
+    "package": "impact_factor==1.1.4",
+    "wheelSha256": "ad1faedfb2170fce54375b3a2a01dd8363adca4d524fbd4ce27b4be6e9d798b0",
+    "version": "impact_factor@1.1.4",
+    "note": "Third-party compilation. CAS partition has no edition, year, subject or TOP flag."
+  }
+}

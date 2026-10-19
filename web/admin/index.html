@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>研究生工具 · 管理后台</title>
+<style>
+:root{--bg:#f6f5f2;--panel:#fff;--ink:#34312d;--muted:#8c857c;--line:#e8e2d9;--side:#25282d;--blue:#4a7fb5;--green:#5b8a72;--gold:#b08d57;--violet:#8a6fb0;--bad:#b6534d;--r:12px}
+*{box-sizing:border-box}html,body{margin:0}body{font:14px/1.55 Inter,"Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink)}button,input{font:inherit}:focus-visible{outline:3px solid #8bb3dc;outline-offset:2px}.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}[hidden]{display:none!important}
+.shell{display:grid;grid-template-columns:190px 1fr;min-height:100vh}.side{background:var(--side);color:#bac0c9;padding:18px 0;display:flex;flex-direction:column}.brand{padding:0 18px 16px;border-bottom:1px solid #393d44}.brand b{display:block;color:#fff}.brand span{font-size:11px;color:#7f8792}.side ul{list-style:none;margin:4px 0 10px;padding:0}.navgroup{padding:14px 18px 4px;font-size:11px;color:#7f8792;text-transform:uppercase;letter-spacing:.05em}.side a{display:block;padding:9px 18px 9px 26px;color:inherit;text-decoration:none;border-left:3px solid transparent}.side a:hover,.side a[aria-current=page]{color:#fff;background:#343942;border-left-color:#8bb3dc}.side-foot{margin-top:auto;padding:14px 18px;border-top:1px solid #393d44;font-size:11px;color:#7f8792}
+.main{min-width:0}.top{height:64px;background:#fff;border-bottom:1px solid var(--line);padding:0 24px;display:flex;align-items:center}.top h1{margin:0;font-size:17px}.top span{margin-left:auto;color:var(--muted);font-size:12px}.content{padding:22px 24px;max-width:1280px}.grid{display:grid;gap:14px}.g4{grid-template-columns:repeat(4,1fr)}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:980px){.g4,.g2{grid-template-columns:1fr 1fr}}@media(max-width:700px){.shell{grid-template-columns:1fr}.side{display:none}.g4,.g2{grid-template-columns:1fr}.content{padding:14px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}.kpi{padding:14px 16px}.kpi .k{font-size:12px;color:var(--muted)}.kpi .v{font-size:25px;font-weight:700;margin:4px 0}.kpi .d{font-size:11px;color:var(--muted)}.mt{margin-top:14px}.head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.head h2{margin:0;font-size:14px}.spacer{flex:1}.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;color:var(--ink)}.btn:hover{background:#f7f4ef}.btn-sm{padding:3px 8px;font-size:12px}.btn-bad{border-color:#e0b3ae;color:#8e3832}.btn-bad:hover{background:#fff1ef}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:12px;color:#756f67;background:#fbfaf8;white-space:nowrap}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#fcfbf9}.num{text-align:right;font-variant-numeric:tabular-nums}.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}.muted{color:var(--muted)}.empty{text-align:center!important;color:var(--muted);padding:30px!important}.tag{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-radius:20px;font-size:11px;white-space:nowrap}.ok{color:#377057;background:#f0f7f3}.off{color:#9a6200;background:#fff8e9}.err{color:var(--bad);background:#fff1ef}.error{border:1px solid #edc1bd;background:#fff1ef;color:#8e3832;border-radius:8px;padding:10px 13px;margin-bottom:14px}.warn{border:1px solid #e6cf9a;background:#fff8e9;color:#7a5200;border-radius:8px;padding:10px 13px;margin-bottom:14px}
+.chart-card{border:1px solid var(--line);border-radius:var(--r);padding:16px;background:#fff}.chart-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:8px}.chart-head h3{margin:0;font-size:14px;font-weight:500}.chart-head small{color:var(--muted);font-size:11px;font-weight:400}.expand{margin-left:auto;border:0;background:none;color:var(--muted);cursor:pointer;padding:2px}.expand svg{width:16px;height:16px}.chart{position:relative;height:300px}.chart svg{width:100%;height:100%;display:block}.legend{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}.legend button{border:0;background:none;color:var(--muted);font-size:11px;cursor:pointer}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--c)}.legend button[aria-pressed=false]{color:#c2bbb1;text-decoration:line-through}.legend button[aria-pressed=false] i{background:#d8d2c9}.gapnote{text-align:center;color:var(--muted);font-size:11px;margin-top:6px}.tip{position:absolute;visibility:hidden;opacity:0;pointer-events:none;background:#fff;border-radius:4px;color:#666;padding:10px;box-shadow:rgba(0,0,0,.2) 1px 2px 10px;transition:.15s;z-index:3;white-space:nowrap}.tip.on{visibility:visible;opacity:1}.tip i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}.modal{position:fixed;inset:0;background:rgba(30,27,24,.45);z-index:10;display:grid;place-items:center;padding:30px}.modal-box{width:min(1100px,100%);background:#fff;border-radius:var(--r);padding:20px}.modal .chart{height:min(65vh,520px)}
+.detail-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}.detail-head strong{font-size:15px}.messages td:nth-child(3){max-width:420px;white-space:pre-wrap;word-break:break-word}.messages td:nth-child(5){max-width:340px}.settings td:first-child{width:250px;color:var(--muted)}
+.trace-tags .tag{margin:0 4px 3px 0}.trace-cost{color:var(--muted);font-size:11px;margin-top:3px}.trace-error{color:var(--bad);font-size:11px;margin-top:3px;word-break:break-word}details summary{cursor:pointer;color:var(--muted);font-size:11px;margin-top:4px}details pre{max-height:260px;overflow:auto;background:#fbfaf8;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:11px;margin:6px 0 0;white-space:pre-wrap;word-break:break-all}
+#stopReason{border:1px solid var(--line);border-radius:6px;padding:5px 8px;width:min(320px,100%)}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="side"><div class="brand"><b>研究生工具</b><span>管理后台</span></div><nav>
+<div class="navgroup">平台</div><ul>
+<li><a href="#platform/accounts" data-view="platform/accounts">账号</a></li>
+<li><a href="#platform/guests" data-view="platform/guests">访客</a></li>
+</ul>
+<div class="navgroup">论文助手</div><ul>
+<li><a href="#paper/overview" data-view="paper/overview" aria-current="page">概览</a></li>
+<li><a href="#paper/users" data-view="paper/users">用户与会话</a></li>
+<li><a href="#paper/settings" data-view="paper/settings">运行设置</a></li>
+</ul></nav><div class="side-foot">研究生工具集 · 平台后台<br>任务队列：进程内存</div></aside>
+<main class="main"><header class="top"><h1 id="title">概览</h1><span id="status">正在连接…</span></header><div class="content">
+<div class="warn" id="stopBanner" hidden></div>
+<div class="error" id="error" hidden></div>
+<section id="view-paper-overview">
+<div class="grid g4">
+<div class="card kpi"><div class="k">总用户</div><div class="v" id="kUsers">—</div><div class="d" id="kActive">—</div></div>
+<div class="card kpi"><div class="k">用户消息</div><div class="v" id="kMessages">—</div><div class="d" id="kTurns">—</div></div>
+<div class="card kpi"><div class="k">模型成本</div><div class="v" id="kCost">—</div><div class="d" id="kCostSplit">—</div></div>
+<div class="card kpi"><div class="k">论文检索</div><div class="v" id="kSearches">—</div><div class="d" id="kPapers">论文库 — 篇</div></div>
+</div>
+<div class="grid g4 mt">
+<div class="card kpi"><div class="k">执行失败</div><div class="v" id="kFailed">—</div><div class="d" id="kFailedRate">占已追踪轮次</div></div>
+<div class="card kpi"><div class="k">投递失败</div><div class="v" id="kDelivery">—</div><div class="d">QQ 发送或提交阶段失败的回复</div></div>
+<div class="card kpi"><div class="k">Router 成本</div><div class="v" id="kRouter">—</div><div class="d">规划 Agent（旧记录为意图路由）</div></div>
+<div class="card kpi"><div class="k">Executor 成本（仅旧记录）</div><div class="v" id="kExecutor">—</div><div class="d" id="kToolCost">工具自身 —</div></div>
+</div>
+<div class="grid g2 mt">
+<div class="chart-card"><div class="chart-head"><h3>每日使用 · Daily Usage <small>用户消息、已追踪 Agent 轮次与论文检索</small></h3><button class="expand" data-chart="usage" aria-label="放大每日使用图"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 9V4h5M4 4l6 6m10-1V4h-5m5 0-6 6M4 15v5h5m-5 0 6-6m10 1v5h-5m5 0-6-6"/></svg></button></div><div class="chart" id="boxUsage"><svg id="svgUsage" role="img" aria-label="每日用户消息、Agent 轮次与检索次数"></svg><div class="tip" id="tipUsage"></div></div><div class="legend" id="legendUsage" aria-label="每日使用图例"></div><div class="gapnote" id="noteUsage"></div></div>
+<div class="chart-card"><div class="chart-head"><h3>每日模型成本 · Daily Cost <small>总成本来自 messages.cost_usd，拆分来自 agent_trace</small></h3><button class="expand" data-chart="cost" aria-label="放大每日模型成本图"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 9V4h5M4 4l6 6m10-1V4h-5m5 0-6 6M4 15v5h5m-5 0 6-6m10 1v5h-5m5 0-6-6"/></svg></button></div><div class="chart" id="boxCost"><svg id="svgCost" role="img" aria-label="每日模型成本与 Router/Executor/工具拆分"></svg><div class="tip" id="tipCost"></div></div><div class="legend" id="legendCost" aria-label="每日模型成本图例"></div><div class="gapnote" id="noteCost"></div></div>
+</div>
+<div class="grid g2 mt">
+<div class="card"><div class="head"><h2>路由分布</h2><span class="spacer"></span><span class="tag off">来自 agent_trace.route</span></div><table><thead><tr><th>路由</th><th class="num">轮次</th><th class="num">占比</th><th class="num">成本</th></tr></thead><tbody id="routesBody"><tr><td class="empty" colspan="4">暂无追踪数据</td></tr></tbody></table></div>
+<div class="card"><div class="head"><h2>工具分布</h2><span class="spacer"></span><span class="tag off">按计划步骤统计（旧记录按 agent_trace.tool）</span></div><table><thead><tr><th>工具</th><th class="num">调用</th><th class="num">占比</th><th class="num">成本</th></tr></thead><tbody id="toolsBody"><tr><td class="empty" colspan="4">暂无追踪数据</td></tr></tbody></table></div>
+</div>
+</section>
+<section id="view-paper-users" hidden><div id="userList" class="card"><div class="head"><h2>用户</h2><span class="spacer"></span><button class="btn btn-sm" id="refreshUsers">刷新</button></div><table><thead><tr><th>OpenID</th><th class="num">会话</th><th class="num">消息</th><th class="num">成本</th><th>最近活跃</th><th></th></tr></thead><tbody id="usersBody"></tbody></table></div>
+<div id="userDetail" hidden><div class="detail-head"><button class="btn" id="back">← 返回</button><strong id="detailUser"></strong></div><div class="card"><div class="head"><h2>会话</h2></div><table><thead><tr><th>#</th><th>标题</th><th>状态</th><th>更新时间</th><th></th></tr></thead><tbody id="conversationsBody"></tbody></table></div><div class="card mt"><div class="head"><h2>消息</h2></div><table class="messages"><thead><tr><th>时间</th><th>角色</th><th>内容</th><th>投递</th><th>Agent Trace</th><th class="num">成本</th></tr></thead><tbody id="messagesBody"><tr><td class="empty" colspan="6">选择一个会话</td></tr></tbody></table></div></div></section>
+<section id="view-paper-settings" hidden>
+<div class="card"><div class="head"><h2>全局急停</h2><span class="spacer"></span><span class="tag" id="stopTag">—</span></div><table class="settings"><tbody>
+<tr><td>当前状态</td><td id="stopState">—</td></tr>
+<tr><td>语义</td><td>停止<strong>接收</strong>新的入站消息；已经在执行的任务会自然跑完，不会被中断。</td></tr>
+<tr><td>停机期间的消息</td><td>回复维护提示，不入库、不排队、不占用去重表；用户需要在恢复后自行重新发送</td></tr>
+<tr><td>重启语义</td><td>状态只存在进程内存，<strong>容器重启会自动解除急停</strong>（见 ADR 0011）</td></tr>
+<tr><td>操作</td><td><input id="stopReason" type="text" maxlength="200" placeholder="原因（可选，便于事后回溯）" aria-label="急停原因"> <button class="btn" id="stopToggle" disabled>—</button></td></tr>
+</tbody></table></div>
+<div class="card mt"><div class="head"><h2>当前运行配置</h2><span class="spacer"></span><span class="tag off">只读 · 状态与阈值，不含 secret</span></div><table class="settings"><tbody id="settingsBody"></tbody></table></div>
+<div class="card mt"><div class="head"><h2>第一版约束</h2></div><table class="settings"><tbody><tr><td>用户入口</td><td>QQ 与 Web 并列：QQ Bot 单聊，以及 Web 访客或账号</td></tr><tr><td>精读额度</td><td>访客每 30 天可使用一次精读；账号不设总次数，但受限速与成本熔断保护</td></tr><tr><td>会话</td><td>/new、/list、/use、/current、/help；论文业务使用自然语言，由意图路由 Agent 分派</td></tr><tr><td>任务</td><td>存在进程内存；重启后进行中任务会丢失</td></tr><tr><td>运行时可写状态</td><td>仅全局急停；行为参数一律走环境变量，以便回溯某次部署实际跑的是什么</td></tr><tr><td>提示词</td><td>当前 tracer 内嵌在 Go 业务模块；稳定后再迁移到 config/prompts/*.md</td></tr></tbody></table></div>
+</section>
+<section id="view-platform-accounts" hidden>
+<div class="card"><div class="head"><h2>账号</h2><span class="spacer"></span><button class="btn btn-sm" id="refreshAccounts">刷新</button></div>
+<table><thead><tr><th>邮箱</th><th>昵称</th><th>邮箱验证</th><th>QQ 绑定</th><th>状态</th><th>注册时间</th><th></th></tr></thead>
+<tbody id="accountsBody"><tr><td class="empty" colspan="7">加载中…</td></tr></tbody></table></div>
+</section>
+<section id="view-platform-guests" hidden>
+<div class="head" style="padding-left:0;padding-right:0;border:0"><h2>访客聚合</h2><span class="spacer"></span><span class="muted">不展示 IP 或访客明细</span><button class="btn btn-sm" id="refreshGuests">刷新</button></div>
+<div class="grid g4">
+<div class="card kpi"><div class="k">活跃访客</div><div class="v" id="guestActive">—</div><div class="d">active</div></div>
+<div class="card kpi"><div class="k">已升级账号</div><div class="v" id="guestUpgraded">—</div><div class="d">upgraded</div></div>
+<div class="card kpi"><div class="k">已清理</div><div class="v" id="guestCleared">—</div><div class="d">cleared</div></div>
+<div class="card kpi"><div class="k">已过期</div><div class="v" id="guestExpired">—</div><div class="d">expired</div></div>
+</div>
+<div class="grid g4 mt">
+<div class="card kpi"><div class="k">精读可用</div><div class="v" id="guestDeepReadAvailable">—</div><div class="d">deepReadAvailable</div></div>
+<div class="card kpi"><div class="k">精读已预留</div><div class="v" id="guestDeepReadReserved">—</div><div class="d">deepReadReserved</div></div>
+<div class="card kpi"><div class="k">精读已消耗</div><div class="v" id="guestDeepReadConsumed">—</div><div class="d">deepReadConsumed</div></div>
+</div>
+<div class="warn mt">访客每 30 天可使用一次精读；升级为账号后不设精读总次数，但仍受限速与成本熔断保护。</div>
+</section>
+</div></main></div>
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-box"><div class="head" style="padding:0 0 10px"><h2 id="modalTitle">图表</h2><span class="spacer"></span><button class="btn" id="closeModal">关闭</button></div><div class="chart" id="boxBig"><svg id="svgBig"></svg><div class="tip" id="tipBig"></div></div><div class="legend" id="legendBig"></div><div class="gapnote" id="noteBig"></div></div></div>
+<script>
+const $=s=>document.querySelector(s);
+const money=n=>`$${Number(n||0).toFixed(4)}`;
+// Per-turn costs land around $0.00005, which toFixed(4) would flatten to $0.0001 or $0.0000.
+const micro=n=>`$${Number(n||0).toFixed(6)}`;
+const date=s=>s?new Date(s).toLocaleString('zh-CN',{hour12:false}):'—';
+const pct=(part,total)=>total>0?`${(part/total*100).toFixed(1)}%`:'—';
+let overview={daily:[],routes:[],tools:[]}, users=[], activeUser=0, bigKey='usage', controls={emergencyStop:false};
+// A series whose value can be null carries a real gap: that day predates agent tracing, so
+// drawing zero would assert something that never happened.
+const defs={
+  usage:{title:'每日使用',fmt:n=>String(n),integer:true,hidden:new Set(),series:[
+    {name:'用户消息',color:'#4a7fb5',get:d=>d.inboundMessages},
+    {name:'Agent 轮次',color:'#8a6fb0',get:d=>d.turns},
+    {name:'检索',color:'#5b8a72',get:d=>d.searches}]},
+  cost:{title:'每日模型成本',fmt:money,integer:false,hidden:new Set(),series:[
+    {name:'总成本',color:'#b08d57',get:d=>d.costUsd},
+    {name:'Router',color:'#4a7fb5',get:d=>d.routerCostUsd},
+    {name:'Executor',color:'#5b8a72',get:d=>d.executorCostUsd},
+    {name:'工具',color:'#b6534d',get:d=>d.toolCostUsd}]}
+};
+async function api(path,options={}){const r=await fetch(path,options);if(!r.ok)throw new Error(`${r.status} ${await r.text()}`);return r.status===204?null:r.json()}
+function escapeHTML(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function showError(e){$('#error').textContent=e.message||e;$('#error').hidden=false;$('#status').textContent='加载失败'}
+function hideError(){$('#error').hidden=true;$('#status').textContent=controls.emergencyStop?'已连接 · 急停中':'已连接'}
+
+async function loadOverview(){try{
+  overview=await api('/api/admin/overview?days=7');
+  $('#kUsers').textContent=overview.users;
+  $('#kActive').textContent=`7 日活跃 ${overview.activeUsers}`;
+  $('#kMessages').textContent=overview.inboundMessages;
+  $('#kTurns').textContent=`已追踪 Agent 轮次 ${overview.turns} · 多步计划 ${pct(overview.multiStepTurns||0,overview.turns)}`;
+  $('#kCost').textContent=money(overview.costUsd);
+  $('#kCostSplit').textContent=`Router ${micro(overview.routerCostUsd)} · Executor ${micro(overview.executorCostUsd)} · 工具 ${micro(overview.toolCostUsd)}`;
+  $('#kSearches').textContent=overview.searches;
+  $('#kPapers').textContent=`论文库 ${overview.papers} 篇`;
+  $('#kFailed').textContent=overview.failedTurns;
+  $('#kFailedRate').textContent=`占已追踪轮次 ${pct(overview.failedTurns,overview.turns)}`;
+  $('#kDelivery').textContent=overview.deliveryFailures;
+  $('#kRouter').textContent=micro(overview.routerCostUsd);
+  $('#kExecutor').textContent=micro(overview.executorCostUsd);
+  $('#kToolCost').textContent=`工具自身 ${micro(overview.toolCostUsd)}`;
+  renderDistribution('#routesBody',overview.routes,overview.turns);
+  renderDistribution('#toolsBody',overview.tools,(overview.tools||[]).reduce((s,i)=>s+i.count,0));
+  drawAll();hideError()
+}catch(e){showError(e)}}
+
+function renderDistribution(selector,items,total){
+  $(selector).innerHTML=(items&&items.length)
+    ?items.map(i=>`<tr><td><span class="tag">${escapeHTML(i.label)}</span></td><td class="num">${i.count}</td><td class="num">${pct(i.count,total)}</td><td class="num mono">${micro(i.costUsd)}</td></tr>`).join('')
+    :'<tr><td class="empty" colspan="4">暂无追踪数据</td></tr>';
+}
+
+async function loadUsers(){try{
+  users=await api('/api/admin/users');
+  $('#usersBody').innerHTML=users.length?users.map((u,i)=>`<tr><td class="mono">${escapeHTML(u.openId)}</td><td class="num">${u.conversations}</td><td class="num">${u.messages}</td><td class="num">${money(u.costUsd)}</td><td>${date(u.lastActiveAt)}</td><td><button class="btn btn-sm" data-user="${i}">详情</button></td></tr>`).join(''):'<tr><td class="empty" colspan="6">暂无用户</td></tr>';
+  document.querySelectorAll('[data-user]').forEach(b=>b.onclick=()=>openUser(+b.dataset.user));
+  hideError()
+}catch(e){showError(e)}}
+
+async function openUser(i){
+  activeUser=users[i].id;$('#detailUser').textContent=users[i].openId;
+  $('#userList').hidden=true;$('#userDetail').hidden=false;
+  $('#messagesBody').innerHTML='<tr><td class="empty" colspan="6">选择一个会话</td></tr>';
+  try{
+    const list=await api(`/api/admin/users/${activeUser}/conversations`);
+    $('#conversationsBody').innerHTML=list.length?list.map(c=>`<tr><td>#${c.conversationNo}</td><td>${escapeHTML(c.title)}</td><td><span class="tag ${c.status==='active'?'ok':'off'}">${escapeHTML(c.status)}</span></td><td>${date(c.updatedAt)}</td><td><button class="btn btn-sm" data-conv="${c.id}">消息</button>${c.status==='archived'?` <button class="btn btn-sm" data-restore="${c.id}">恢复</button>`:''}</td></tr>`).join(''):'<tr><td class="empty" colspan="5">暂无会话</td></tr>';
+    document.querySelectorAll('[data-conv]').forEach(b=>b.onclick=()=>loadMessages(+b.dataset.conv));
+    document.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>restoreConversation(+b.dataset.restore,i));
+  }catch(e){showError(e)}
+}
+
+async function restoreConversation(id,userIndex){
+  if(!confirm('确认恢复这个会话？'))return;
+  try{await api(`/api/admin/users/${activeUser}/conversations/${id}/restore`,{method:'POST',headers:{'X-Requested-With':'paper-assistant-admin'}});await openUser(userIndex);hideError()}catch(e){showError(e)}
+}
+
+const deliveryClass={sent:'ok',received:'',reserved:'off',failed:'err'};
+function deliveryCell(m){
+  const status=m.deliveryStatus||'—';
+  const title=m.qqOutboundId?` title="QQ 出站 ID ${escapeHTML(m.qqOutboundId)}"`:'';
+  return `<span class="tag ${deliveryClass[status]??''}"${title}>${escapeHTML(status)}</span>`;
+}
+
+// The summary reads only the five trace fields that are stable across tool changes; everything
+// else stays available as raw JSON so adding a tool never requires touching this view.
+function traceCell(m){
+  const t=m.agentTrace;
+  if(!t)return '<span class="muted">—</span>';
+  const status=t.status||'—';
+  const statusClass=status==='succeeded'?'ok':status==='failed'?'err':'off';
+  const tags=[`<span class="tag">${escapeHTML(t.route||'—')}</span>`];
+  // Version-3 traces list every plan step with its own status (ADR 0021).
+  if(Array.isArray(t.plan)&&t.plan.length)t.plan.forEach(step=>tags.push(`<span class="tag${step.status==='failed'?' err':step.status==='succeeded'?'':' off'}">${escapeHTML(step.tool||'—')}${t.plan.length>1?' · '+escapeHTML(step.status||''):''}</span>`));
+  else if(t.tool)tags.push(`<span class="tag">${escapeHTML(t.tool)}</span>`);
+  tags.push(`<span class="tag ${statusClass}">${escapeHTML(status)}</span>`);
+  const router=t.routerUsage&&t.routerUsage.costUsd, executor=t.executorUsage&&t.executorUsage.costUsd, tool=t.toolUsage&&t.toolUsage.costUsd;
+  return `<div class="trace-tags">${tags.join('')}</div>
+    <div class="trace-cost mono">R ${micro(router)} · E ${micro(executor)} · T ${micro(tool)}</div>
+    ${t.error?`<div class="trace-error">${escapeHTML(t.error)}</div>`:''}
+    <details><summary>原始 JSON</summary><pre>${escapeHTML(JSON.stringify(t,null,2))}</pre></details>`;
+}
+
+async function loadMessages(id){try{
+  const list=await api(`/api/admin/conversations/${id}/messages?userId=${activeUser}&limit=100`);
+  $('#messagesBody').innerHTML=list.length?list.map(m=>`<tr><td>${date(m.createdAt)}</td><td>${escapeHTML(m.role)}</td><td>${escapeHTML(m.content||'')}</td><td>${deliveryCell(m)}</td><td>${traceCell(m)}</td><td class="num">${micro(m.costUsd)}</td></tr>`).join(''):'<tr><td class="empty" colspan="6">暂无消息</td></tr>';
+  hideError()
+}catch(e){showError(e)}}
+
+function configValue(v){
+  if(typeof v==='boolean')return `<span class="tag ${v?'ok':'off'}">${v?'是':'否'}</span>`;
+  if(v===null||v===undefined||v==='')return '<span class="muted">—</span>';
+  return escapeHTML(Array.isArray(v)?v.join('、'):v);
+}
+function configGroup(title,value,labels={}){
+  const entries=value&&typeof value==='object'&&!Array.isArray(value)?Object.entries(value):[];
+  const rows=entries.length?entries.map(([k,v])=>`<tr><td>${escapeHTML(labels[k]||k)}</td><td>${configValue(v)}</td></tr>`).join(''):'<tr><td>状态</td><td><span class="muted">未提供</span></td></tr>';
+  return `<tr><th colspan="2">${escapeHTML(title)}</th></tr>${rows}`;
+}
+async function loadConfig(){try{
+  const c=await api('/api/admin/config');
+  const labels={environment:'环境',qqEnabled:'QQ 网关',qqApiBase:'QQ API',qqIntents:'QQ Intents',paperScraperUrl:'paperscraper 地址',paperScraperResultLimit:'单次候选数',deepSeekConfigured:'DeepSeek 已配置',deepSeekModel:'DeepSeek 模型',fullTextDirectory:'全文目录',maxSearchPapers:'单次检索上限',toolCallsPerTurn:'单轮工具预算',taskPersistence:'任务存储',emergencyStopPersisted:'急停是否持久化',jwtConfigured:'JWT 已配置',redisConfigured:'Redis 已配置',smtpMode:'SMTP 模式',smtpConfigured:'SMTP 已配置'};
+  const ordered=['environment','qqEnabled','qqApiBase','qqIntents','paperScraperUrl','paperScraperResultLimit','deepSeekConfigured','deepSeekModel','fullTextDirectory','maxSearchPapers','toolCallsPerTurn','taskPersistence','emergencyStopPersisted','jwtConfigured','redisConfigured','smtpMode','smtpConfigured'];
+  const featureLabels={openRegistration:'开放注册',guestAccess:'访客访问',guestDeepRead:'访客精读',guestImport:'访客数据导入',emailVerification:'邮箱验证',costBreaker:'成本熔断'};
+  const thresholdLabels={hourlyUSD:'每小时成本阈值（USD）',dailyUSD:'每日成本阈值（USD）'};
+  const scalarRows=ordered.filter(k=>Object.prototype.hasOwnProperty.call(c,k)).map(k=>`<tr><td>${escapeHTML(labels[k])}</td><td>${configValue(c[k])}</td></tr>`).join('');
+  $('#settingsBody').innerHTML=`<tr><td>接口内容</td><td>仅展示运行状态、功能开关与成本阈值；不读取或展示 secret</td></tr>${scalarRows}${configGroup('功能开关 · features',c.features,featureLabels)}${configGroup('成本阈值 · costThresholds',c.costThresholds,thresholdLabels)}`;
+  hideError()
+}catch(e){showError(e)}}
+
+function renderControls(){
+  const on=controls.emergencyStop;
+  $('#stopTag').textContent=on?'急停中':'正常接收';
+  $('#stopTag').className=`tag ${on?'err':'ok'}`;
+  $('#stopState').innerHTML=on
+    ?`<span class="tag err">急停中</span> 自 ${escapeHTML(date(controls.engagedAt))} 起${controls.reason?`，原因：${escapeHTML(controls.reason)}`:'，未填写原因'}`
+    :'<span class="tag ok">正常接收</span> 正在处理入站消息';
+  const button=$('#stopToggle');
+  button.disabled=false;
+  button.textContent=on?'解除急停':'启用全局急停';
+  button.className=`btn ${on?'':'btn-bad'}`;
+  $('#stopReason').disabled=on;
+  const banner=$('#stopBanner');
+  banner.hidden=!on;
+  if(on)banner.textContent=`全局急停已启用（${date(controls.engagedAt)}）：所有新入站消息都会被拒收且不记录。容器重启会自动解除。`;
+  $('#status').textContent=on?'已连接 · 急停中':'已连接';
+}
+
+async function loadControls(){try{controls=await api('/api/admin/runtime-controls');renderControls()}catch(e){showError(e)}}
+
+async function toggleStop(){
+  const engage=!controls.emergencyStop;
+  if(engage&&!confirm('启用全局急停？系统将拒收所有新的入站消息，已在执行的任务不受影响。'))return;
+  if(!engage&&!confirm('解除全局急停，恢复接收入站消息？'))return;
+  $('#stopToggle').disabled=true;
+  try{
+    controls=await api('/api/admin/runtime-controls',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'paper-assistant-admin'},body:JSON.stringify({emergencyStop:engage,reason:$('#stopReason').value})});
+    renderControls();hideError()
+  }catch(e){$('#stopToggle').disabled=false;showError(e)}
+}
+
+function ticks(max,integer){const raw=Math.max(integer?1:.000001,max)/4,mag=10**Math.floor(Math.log10(raw));let step=[1,2,2.5,5,10].map(x=>x*mag).find(x=>x>=raw)||10*mag;if(integer)step=Math.max(1,Math.round(step));const a=[];for(let n=0;n<=Math.ceil(max/step)*step+step/1000;n+=step)a.push(integer?n:+n.toPrecision(10));return a}
+const value=(s,x)=>{const v=s.get(x);return v===null||v===undefined?null:Number(v)};
+
+function chart(key,boxId,svgId,tipId,legendId,noteId){
+  const d=defs[key],box=$(boxId),svg=$(svgId),tip=$(tipId);
+  const W=Math.max(300,box.clientWidth),H=box.clientHeight||300,L=key==='cost'?70:40,R=14,T=14,B=25;
+  const vis=d.series.filter((_,i)=>!d.hidden.has(i));
+  const values=overview.daily.flatMap(x=>vis.map(s=>value(s,x))).filter(v=>v!==null);
+  // The floor must not be 1 for the cost chart: daily spend is cents, and clamping the axis to
+  // a whole dollar flattens the curve onto the baseline.
+  const peak=Math.max(d.integer?1:.000001,...values,0);
+  const ys=ticks(peak,d.integer),top=ys.at(-1)||1;
+  const X=i=>L+(W-L-R)*i/Math.max(1,overview.daily.length-1),Y=v=>T+(H-T-B)*(1-v/top);
+  let out='';
+  ys.forEach(v=>out+=`<line x1="${L}" y1="${Y(v)}" x2="${W-R}" y2="${Y(v)}" stroke="#efe9e0"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="#a39a8e">${d.fmt(v)}</text>`);
+  overview.daily.forEach((x,i)=>out+=`<text x="${X(i)}" y="${H-5}" text-anchor="middle" font-size="10" fill="#a39a8e">${x.date.slice(5)}</text>`);
+  let gaps=0;
+  vis.forEach(s=>{
+    let path='',open=false,marks='';
+    overview.daily.forEach((x,i)=>{
+      const v=value(s,x);
+      if(v===null){if(open)open=false;gaps++;return}
+      path+=`${open?'L':'M'}${X(i)} ${Y(v)} `;
+      const isolated=value(s,overview.daily[i-1]??{})===null&&value(s,overview.daily[i+1]??{})===null;
+      if(v>0||isolated)marks+=`<circle cx="${X(i)}" cy="${Y(v)}" r="3" fill="${s.color}"/>`;
+      open=true;
+    });
+    if(path)out+=`<path d="${path.trim()}" fill="none" stroke="${s.color}" stroke-width="2.2"/>`;
+    out+=marks;
+  });
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=out;
+  const legend=$(legendId);
+  legend.innerHTML=d.series.map((s,i)=>`<button aria-pressed="${!d.hidden.has(i)}" data-i="${i}" style="--c:${s.color}"><i></i>${s.name}</button>`).join('');
+  legend.querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;d.hidden.has(i)?d.hidden.delete(i):d.hidden.add(i);drawAll()});
+  if(noteId)$(noteId).textContent=gaps?'折线中断表示该日没有 Agent 追踪数据，不代表数值为 0。':'';
+  box.onmousemove=e=>{
+    if(!overview.daily.length)return;
+    const r=svg.getBoundingClientRect(),i=Math.max(0,Math.min(overview.daily.length-1,Math.round((e.clientX-r.left)/r.width*(overview.daily.length-1)))),x=overview.daily[i];
+    tip.innerHTML=`<b>${x.date}</b><br>`+vis.map(s=>{const v=value(s,x);return `<i style="background:${s.color}"></i>${s.name}：${v===null?'无追踪数据':d.fmt(v)}`}).join('<br>');
+    tip.style.left=Math.min(box.clientWidth-tip.offsetWidth-4,e.offsetX+12)+'px';
+    tip.style.top=Math.max(4,e.offsetY-tip.offsetHeight/2)+'px';
+    tip.className='tip on';
+  };
+  box.onmouseleave=()=>tip.className='tip';
+}
+
+function drawAll(){
+  if($('#view-paper-overview').hidden)return;
+  chart('usage','#boxUsage','#svgUsage','#tipUsage','#legendUsage','#noteUsage');
+  chart('cost','#boxCost','#svgCost','#tipCost','#legendCost','#noteCost');
+  if(!$('#modal').hidden)chart(bigKey,'#boxBig','#svgBig','#tipBig','#legendBig','#noteBig');
+}
+
+// Views are keyed "l1/l2": the first-level nav is a tool or platform domain, the second is a
+// page inside it. Section ids replace the slash with a dash. Adding a tool later is one more
+// entry here plus its sections, no routing rewrite.
+const views={
+  'platform/accounts':{l1:'平台',l2:'账号',load:loadAccounts},
+  'platform/guests':{l1:'平台',l2:'访客',load:loadGuests},
+  'paper/overview':{l1:'论文助手',l2:'概览',load:loadOverview},
+  'paper/users':{l1:'论文助手',l2:'用户与会话',load:loadUsers},
+  'paper/settings':{l1:'论文助手',l2:'运行设置',load:loadConfig}
+};
+const defaultView='paper/overview';
+const viewId=name=>'view-'+name.replace('/','-');
+function showView(name){
+  const view=views[name]?name:defaultView;
+  document.querySelectorAll('[id^=view-]').forEach(x=>x.hidden=x.id!==viewId(view));
+  document.querySelectorAll('[data-view]').forEach(a=>{a.removeAttribute('aria-current');if(a.dataset.view===view)a.setAttribute('aria-current','page')});
+  $('#title').textContent=views[view].l1+' · '+views[view].l2;
+  views[view].load&&views[view].load();
+}
+
+async function loadAccounts(){try{
+  const list=await api('/api/admin/accounts');
+  $('#accountsBody').innerHTML=list.length?list.map(a=>{
+    const emailVerification=a.emailVerifiedAt
+      ?`<span class="tag ok">已验证</span> ${escapeHTML(date(a.emailVerifiedAt))}`
+      :'<span class="tag off">历史账号/待验证</span>';
+    return `<tr><td class="mono">${escapeHTML(a.email)}</td><td>${escapeHTML(a.nickname)}</td><td>${emailVerification}</td><td>${a.qqBound?'<span class="tag ok">已绑定</span>':'<span class="tag off">未绑定</span>'}</td><td><span class="tag ${a.status==='active'?'ok':'err'}">${escapeHTML(a.status)}</span></td><td>${date(a.createdAt)}</td><td><button class="btn btn-sm ${a.status==='active'?'btn-bad':''}" data-account="${a.id}" data-status="${a.status==='active'?'disabled':'active'}">${a.status==='active'?'禁用':'启用'}</button></td></tr>`;
+  }).join(''):'<tr><td class="empty" colspan="7">暂无账号</td></tr>';
+  document.querySelectorAll('[data-account]').forEach(b=>b.onclick=()=>setAccountStatus(+b.dataset.account,b.dataset.status));
+  hideError()
+}catch(e){showError(e)}}
+
+function guestMetric(data,key,group){
+  const nested=data?.[group];
+  const statusCounts=data?.statusCounts;
+  const value=data?.[key]??nested?.[key.replace(/^deepRead/,'').replace(/^./,c=>c.toLowerCase())]??statusCounts?.[key];
+  return value===null||value===undefined?'—':value;
+}
+async function loadGuests(){try{
+  const aggregate=await api('/api/admin/guests');
+  $('#guestActive').textContent=guestMetric(aggregate,'active','statuses');
+  $('#guestUpgraded').textContent=guestMetric(aggregate,'upgraded','statuses');
+  $('#guestCleared').textContent=guestMetric(aggregate,'cleared','statuses');
+  $('#guestExpired').textContent=guestMetric(aggregate,'expired','statuses');
+  $('#guestDeepReadAvailable').textContent=guestMetric(aggregate,'deepReadAvailable','deepRead');
+  $('#guestDeepReadReserved').textContent=guestMetric(aggregate,'deepReadReserved','deepRead');
+  $('#guestDeepReadConsumed').textContent=guestMetric(aggregate,'deepReadConsumed','deepRead');
+  hideError()
+}catch(e){showError(e)}}
+
+async function setAccountStatus(id,status){
+  if(!confirm(status==='disabled'?'确认禁用该账号？禁用后将无法登录。':'确认启用该账号？'))return;
+  try{await api(`/api/admin/accounts/${id}/status`,{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'paper-assistant-admin'},body:JSON.stringify({status})});loadAccounts();hideError()}catch(e){showError(e)}
+}
+
+$('#refreshAccounts').onclick=loadAccounts;
+$('#refreshGuests').onclick=loadGuests;
+document.querySelectorAll('[data-view]').forEach(a=>a.onclick=e=>{
+  e.preventDefault();
+  const next=a.dataset.view;
+  if(location.hash.slice(1)===next)showView(next);else location.hash=next;
+});
+// Honour the hash on first paint as well, so a bookmarked /admin/#paper/settings opens that view.
+window.onhashchange=()=>showView(location.hash.slice(1));
+$('#back').onclick=()=>{$('#userList').hidden=false;$('#userDetail').hidden=true};
+$('#refreshUsers').onclick=loadUsers;
+$('#stopToggle').onclick=toggleStop;
+document.querySelectorAll('[data-chart]').forEach(b=>b.onclick=()=>{bigKey=b.dataset.chart;$('#modalTitle').textContent=defs[bigKey].title;$('#modal').hidden=false;drawAll();$('#closeModal').focus()});
+$('#closeModal').onclick=()=>$('#modal').hidden=true;
+$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').hidden=true};
+document.onkeydown=e=>{if(e.key==='Escape')$('#modal').hidden=true};
+window.onresize=drawAll;
+loadControls();
+showView(location.hash.slice(1));
+</script>
+</body>
+</html>
