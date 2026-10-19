@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"paperassistant/internal/metrics"
 )
 
 const (
@@ -53,10 +55,13 @@ func (r *Redis) BeginTurn(ctx context.Context, actorKey, ip string) (Lease, erro
 	case 0:
 		return Lease{ActorKey: actorKey, Token: token}, nil
 	case 1, 2:
+		metrics.RateLimited("web_turn")
 		return Lease{}, ErrRateLimited
 	case 3:
+		metrics.RateLimited("web_concurrent")
 		return Lease{}, ErrConcurrent
 	case 4:
+		metrics.RateLimited("cost_breaker")
 		return Lease{}, ErrCircuitOpen
 	default:
 		return Lease{}, ErrUnavailable
@@ -78,6 +83,7 @@ func (r *Redis) AllowTool(ctx context.Context, actorKey string, class ToolClass)
 		return unavailable(err)
 	}
 	if result != 0 {
+		metrics.RateLimited("web_tool")
 		return ErrRateLimited
 	}
 	return nil

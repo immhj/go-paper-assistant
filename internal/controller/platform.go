@@ -15,6 +15,7 @@ import (
 	"paperassistant/internal/auth"
 	"paperassistant/internal/config"
 	"paperassistant/internal/dao"
+	"paperassistant/internal/metrics"
 	"paperassistant/internal/provider/ratelimit"
 	"paperassistant/internal/provider/verification"
 	"paperassistant/internal/service"
@@ -55,6 +56,7 @@ func (p *Platform) APIRateLimit(next http.Handler) http.Handler {
 			return
 		}
 		if count > int64(p.config.Platform.APIPerMinute) {
+			metrics.RateLimited("api")
 			setRetryAfter(w, ttl)
 			writeStatusError(w, http.StatusTooManyRequests, "RATE_LIMITED", "请求过于频繁，请稍后重试")
 			return

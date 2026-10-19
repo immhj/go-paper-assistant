@@ -15,6 +15,7 @@ import (
 
 	"paperassistant/internal/config"
 	"paperassistant/internal/domain"
+	"paperassistant/internal/metrics"
 )
 
 type ProviderError struct {
@@ -141,7 +142,7 @@ func (c *Client) Complete(ctx context.Context, request Request) (string, domain.
 	}
 	usage := domain.ModelUsage{PromptTokens: result.Usage.PromptTokens, CompletionTokens: result.Usage.CompletionTokens, CachedTokens: result.Usage.PromptCacheHitTokens}
 	usage.CostUSD = c.cost(usage)
-	warnIfTruncated("complete", result.Choices[0].FinishReason, usage)
+	observe(callKind(request.Thinking), result.Choices[0].FinishReason, usage)
 	return result.Choices[0].Message.Content, usage, nil
 }
 
@@ -215,6 +216,7 @@ func (c *Client) CallTool(ctx context.Context, request ToolRequest) (ToolCall, d
 	}
 	usage := domain.ModelUsage{PromptTokens: result.Usage.PromptTokens, CompletionTokens: result.Usage.CompletionTokens, CachedTokens: result.Usage.PromptCacheHitTokens}
 	usage.CostUSD = c.cost(usage)
+	observe("tool", "", usage)
 	if len(result.Choices) != 1 || len(result.Choices[0].Message.ToolCalls) != 1 {
 		return ToolCall{}, usage, fmt.Errorf("deepseek returned %d choices and an invalid tool call count", len(result.Choices))
 	}
@@ -316,7 +318,7 @@ func (c *Client) Stream(ctx context.Context, request Request, onDelta func(strin
 		return usage, errors.New("deepseek stream returned no content")
 	}
 	usage.CostUSD = c.cost(usage)
-	warnIfTruncated("stream", finishReason, usage)
+	observe("stream", finishReason, usage)
 	return usage, nil
 }
 
@@ -345,10 +347,20 @@ func (c *Client) maxTokens(thinking bool) int {
 	return c.chatMaxTokens
 }
 
-func warnIfTruncated(kind, finishReason string, usage domain.ModelUsage) {
+// observe exports usage and flags max_tokens truncation for one finished call.
+func observe(call, finishReason string, usage domain.ModelUsage) {
+	metrics.ObserveLLM(call, usage)
 	if finishReason == "length" {
-		slog.Warn("deepseek output hit max_tokens and was truncated", "call", kind, "completion_tokens", usage.CompletionTokens)
+		metrics.LLMTruncated(call)
+		slog.Warn("deepseek output hit max_tokens and was truncated", "call", call, "completion_tokens", usage.CompletionTokens)
 	}
+}
+
+func callKind(thinking bool) string {
+	if thinking {
+		return "thinking"
+	}
+	return "complete"
 }
 
 func (c *Client) payload(request Request, stream bool) map[string]any {

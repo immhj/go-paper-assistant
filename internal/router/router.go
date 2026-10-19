@@ -13,6 +13,7 @@ import (
 
 	"paperassistant/internal/config"
 	"paperassistant/internal/controller"
+	"paperassistant/internal/metrics"
 )
 
 type Dependencies struct {
@@ -91,7 +92,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Platform != nil {
 		handler = deps.Platform.APIRateLimit(handler)
 	}
-	return logger(deps.Config.TrustedProxyCIDRs, recoverer(securityHeaders(handler)))
+	return logger("public", deps.Config.TrustedProxyCIDRs, recoverer(securityHeaders(handler)))
 }
 
 // NewAdmin builds the handler for the admin listener. It must only be bound to a loopback
@@ -118,10 +119,12 @@ func NewAdmin(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/", http.StatusTemporaryRedirect)
 	})
+	// Protected by the loopback bind alone (ADR 0023) so a local Prometheus can scrape it.
+	mux.Handle("GET /metrics", metrics.Handler())
 	mux.Handle("GET /admin/", basicAuth(deps.Config.Admin, adminMux))
 	mux.Handle("GET /api/admin/", basicAuth(deps.Config.Admin, adminMux))
 	mux.Handle("POST /api/admin/", basicAuth(deps.Config.Admin, adminMux))
-	return logger(deps.Config.TrustedProxyCIDRs, recoverer(securityHeaders(mux)))
+	return logger("admin", deps.Config.TrustedProxyCIDRs, recoverer(securityHeaders(mux)))
 }
 
 func basicAuth(cfg config.AdminConfig, next http.Handler) http.Handler {
@@ -191,20 +194,25 @@ func newRequestID() string {
 // logger writes one structured access-log line per request. It logs the path without the query
 // string so tokens or search terms in URLs never reach the logs. Every response carries
 // X-Request-ID so a user-reported error can be matched to its log line.
-func logger(trusted []netip.Prefix, next http.Handler) http.Handler {
+//
+// It also feeds the HTTP metrics. The route label is r.Pattern, which ServeMux sets on this same
+// request once it has matched, so it is the bounded pattern ("GET /api/projects/{projectNo}")
+// rather than the raw path.
+func logger(listener string, trusted []netip.Prefix, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		id := newRequestID()
 		w.Header().Set("X-Request-ID", id)
 		rec := &statusRecorder{ResponseWriter: w}
 		next.ServeHTTP(rec, r)
-		if strings.HasPrefix(r.URL.Path, "/healthz") {
-			return
-		}
 		status := rec.status
 		if status == 0 {
 			status = http.StatusOK
 		}
+		if strings.HasPrefix(r.URL.Path, "/healthz") || r.URL.Path == "/metrics" {
+			return
+		}
+		metrics.ObserveHTTP(listener, r.Pattern, r.Method, status, time.Since(start))
 		level := slog.LevelInfo
 		if status >= 500 {
 			level = slog.LevelError

@@ -14,6 +14,7 @@ import (
 	"paperassistant/internal/auth"
 	"paperassistant/internal/dao"
 	"paperassistant/internal/domain"
+	"paperassistant/internal/metrics"
 	mailprovider "paperassistant/internal/provider/mail"
 	"paperassistant/internal/provider/ratelimit"
 	"paperassistant/internal/provider/verification"
@@ -282,6 +283,7 @@ func (p *Platform) checkLoginThrottle(ctx context.Context, emailKey, ipKey strin
 			return nil
 		}
 		if count >= int64(check.limit) {
+			metrics.RateLimited("login")
 			return &ThrottledError{RetryAfter: ttl}
 		}
 	}
@@ -431,6 +433,9 @@ func (p *Platform) CreateGuest(ctx context.Context) (string, domain.GuestSession
 		guest, err := p.store.CreateGuestSession(ctx, digest[:])
 		if errors.Is(err, dao.ErrDuplicate) {
 			continue
+		}
+		if err == nil {
+			metrics.GuestCreated()
 		}
 		return token, guest, err
 	}

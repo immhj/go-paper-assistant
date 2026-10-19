@@ -22,7 +22,7 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 func TestAccessLogRecordsStatusIPAndRequestID(t *testing.T) {
 	logs := captureLogs(t)
 	trusted := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
-	h := logger(trusted, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := logger("public", trusted, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 		_, _ = w.Write([]byte("short and stout"))
 	}))
@@ -52,7 +52,7 @@ func TestAccessLogRecordsStatusIPAndRequestID(t *testing.T) {
 func TestAccessLogWrapperKeepsSSEFlushing(t *testing.T) {
 	captureLogs(t)
 	flushed := false
-	h := logger(nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := logger("public", nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			t.Fatal("wrapped writer is not an http.Flusher; SSE chat would fail")
@@ -70,7 +70,7 @@ func TestAccessLogWrapperKeepsSSEFlushing(t *testing.T) {
 
 func TestPanicIsLoggedAs500WithRequestID(t *testing.T) {
 	logs := captureLogs(t)
-	h := logger(nil, recoverer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })))
+	h := logger("public", nil, recoverer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/x", nil))
 	if rec.Code != http.StatusInternalServerError || !bytes.Contains(logs.Bytes(), []byte(`"status":500`)) ||
