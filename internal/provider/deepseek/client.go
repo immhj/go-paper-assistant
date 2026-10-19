@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -44,6 +45,8 @@ type Client struct {
 	model   string
 	http    *http.Client
 	prices  pricing
+
+	chatMaxTokens, thinkingMaxTokens int
 }
 
 type pricing struct {
@@ -88,8 +91,9 @@ type ToolCall struct {
 func New(cfg config.DeepSeekConfig) *Client {
 	return &Client{
 		baseURL: cfg.APIBase, apiKey: cfg.APIKey, model: cfg.Model,
-		http:   &http.Client{Timeout: cfg.Timeout},
-		prices: pricing{input: cfg.PeakInputPerM, cacheHit: cfg.PeakCacheHitPerM, output: cfg.PeakOutputPerM},
+		http:          &http.Client{Timeout: cfg.Timeout},
+		prices:        pricing{input: cfg.PeakInputPerM, cacheHit: cfg.PeakCacheHitPerM, output: cfg.PeakOutputPerM},
+		chatMaxTokens: cfg.MaxTokens, thinkingMaxTokens: cfg.ThinkingMaxTokens,
 	}
 }
 
@@ -121,6 +125,7 @@ func (c *Client) Complete(ctx context.Context, request Request) (string, domain.
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 		Usage struct {
 			PromptTokens         int `json:"prompt_tokens"`
@@ -136,6 +141,7 @@ func (c *Client) Complete(ctx context.Context, request Request) (string, domain.
 	}
 	usage := domain.ModelUsage{PromptTokens: result.Usage.PromptTokens, CompletionTokens: result.Usage.CompletionTokens, CachedTokens: result.Usage.PromptCacheHitTokens}
 	usage.CostUSD = c.cost(usage)
+	warnIfTruncated("complete", result.Choices[0].FinishReason, usage)
 	return result.Choices[0].Message.Content, usage, nil
 }
 
@@ -166,7 +172,7 @@ func (c *Client) CallTool(ctx context.Context, request ToolRequest) (ToolCall, d
 	payload := map[string]any{
 		"model": c.model, "messages": request.Messages, "stream": false, "temperature": 0,
 		"thinking": map[string]string{"type": "disabled"}, "tools": request.Tools,
-		"tool_choice": toolChoice,
+		"tool_choice": toolChoice, "max_tokens": c.maxTokens(false),
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -247,7 +253,7 @@ func (c *Client) Stream(ctx context.Context, request Request, onDelta func(strin
 		return domain.ModelUsage{}, responseError(resp)
 	}
 	var usage domain.ModelUsage
-	gotContent, done := false, false
+	gotContent, done, finishReason := false, false, ""
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
 	for scanner.Scan() {
@@ -268,6 +274,7 @@ func (c *Client) Stream(ctx context.Context, request Request, onDelta func(strin
 				Delta struct {
 					Content string `json:"content"`
 				} `json:"delta"`
+				FinishReason string `json:"finish_reason"`
 			} `json:"choices"`
 			Usage *struct {
 				PromptTokens         int `json:"prompt_tokens"`
@@ -282,6 +289,9 @@ func (c *Client) Stream(ctx context.Context, request Request, onDelta func(strin
 			return usage, fmt.Errorf("deepseek stream error: %s", chunk.Error.Message)
 		}
 		for _, choice := range chunk.Choices {
+			if choice.FinishReason != "" {
+				finishReason = choice.FinishReason
+			}
 			if choice.Delta.Content != "" {
 				gotContent = true
 				if err = onDelta(choice.Delta.Content); err != nil {
@@ -306,6 +316,7 @@ func (c *Client) Stream(ctx context.Context, request Request, onDelta func(strin
 		return usage, errors.New("deepseek stream returned no content")
 	}
 	usage.CostUSD = c.cost(usage)
+	warnIfTruncated("stream", finishReason, usage)
 	return usage, nil
 }
 
@@ -325,8 +336,26 @@ func (c *Client) cost(usage domain.ModelUsage) float64 {
 	return factor * (float64(miss)*c.prices.input + float64(usage.CachedTokens)*c.prices.cacheHit + float64(usage.CompletionTokens)*c.prices.output) / 1_000_000
 }
 
+// maxTokens caps one call's output (reasoning included for thinking calls) so a single runaway
+// generation has a known worst-case cost.
+func (c *Client) maxTokens(thinking bool) int {
+	if thinking {
+		return c.thinkingMaxTokens
+	}
+	return c.chatMaxTokens
+}
+
+func warnIfTruncated(kind, finishReason string, usage domain.ModelUsage) {
+	if finishReason == "length" {
+		slog.Warn("deepseek output hit max_tokens and was truncated", "call", kind, "completion_tokens", usage.CompletionTokens)
+	}
+}
+
 func (c *Client) payload(request Request, stream bool) map[string]any {
-	payload := map[string]any{"model": c.model, "messages": request.Messages, "stream": stream, "temperature": request.Temperature}
+	payload := map[string]any{
+		"model": c.model, "messages": request.Messages, "stream": stream, "temperature": request.Temperature,
+		"max_tokens": c.maxTokens(request.Thinking),
+	}
 	if request.JSON {
 		payload["response_format"] = map[string]string{"type": "json_object"}
 	}

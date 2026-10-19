@@ -118,6 +118,9 @@ type DeepSeekConfig struct {
 	PeakInputPerM    float64
 	PeakCacheHitPerM float64
 	PeakOutputPerM   float64
+	// MaxTokens caps non-thinking calls, ThinkingMaxTokens thinking calls (reasoning included).
+	MaxTokens         int
+	ThinkingMaxTokens int
 }
 
 type FullTextConfig struct {
@@ -183,7 +186,7 @@ func Load() (Config, error) {
 			GuestImportEnabled:            r.envBool("PLATFORM_GUEST_IMPORT_ENABLED", true),
 			EmailVerificationRequired:     r.envBool("PLATFORM_EMAIL_VERIFICATION_REQUIRED", true),
 			CostBreakerEnabled:            r.envBool("PLATFORM_COST_BREAKER_ENABLED", true),
-			CostHourlyUSD:                 r.envFloat("PLATFORM_COST_HOURLY_USD", 2), CostDailyUSD: r.envFloat("PLATFORM_COST_DAILY_USD", 10),
+			CostHourlyUSD:                 r.envFloat("PLATFORM_COST_HOURLY_USD", 1), CostDailyUSD: r.envFloat("PLATFORM_COST_DAILY_USD", 5),
 			APIPerMinute: r.envInt("PLATFORM_API_PER_MINUTE", 60), LoginFailureLimit: r.envInt("PLATFORM_LOGIN_FAILURE_LIMIT", 5),
 			LoginIPFailureLimit: r.envInt("PLATFORM_LOGIN_IP_FAILURE_LIMIT", 20),
 			LoginFailureWindow:  r.envDuration("PLATFORM_LOGIN_FAILURE_WINDOW", 15*time.Minute),
@@ -204,6 +207,7 @@ func Load() (Config, error) {
 			Model: env("DEEPSEEK_MODEL", "deepseek-flash"), Timeout: r.envDuration("DEEPSEEK_TIMEOUT", 180*time.Second),
 			PeakInputPerM: r.envFloat("DEEPSEEK_PEAK_INPUT_PER_M", 0.30), PeakCacheHitPerM: r.envFloat("DEEPSEEK_PEAK_CACHE_HIT_PER_M", 0.006),
 			PeakOutputPerM: r.envFloat("DEEPSEEK_PEAK_OUTPUT_PER_M", 1.20),
+			MaxTokens:      r.envInt("DEEPSEEK_MAX_TOKENS", 4096), ThinkingMaxTokens: r.envInt("DEEPSEEK_THINKING_MAX_TOKENS", 16384),
 		},
 		FullText: FullTextConfig{
 			Directory: env("FULLTEXT_DIR", "data/fulltext"), PDFToText: env("PDFTOTEXT_BIN", "pdftotext"),
@@ -244,6 +248,9 @@ func validate(cfg Config) error {
 	}
 	if cfg.QQ.Enabled && (cfg.QQ.AppID == "" || cfg.QQ.AppSecret == "") {
 		return errors.New("QQ_APP_ID and QQ_APP_SECRET are required when QQ_ENABLED=true")
+	}
+	if cfg.DeepSeek.MaxTokens < 256 || cfg.DeepSeek.ThinkingMaxTokens < 1024 {
+		return errors.New("DEEPSEEK_MAX_TOKENS must be >= 256 and DEEPSEEK_THINKING_MAX_TOKENS >= 1024")
 	}
 	if cfg.PaperScraper.ResultLimit < 1 || cfg.PaperScraper.ResultLimit > 100 {
 		return fmt.Errorf("PAPERSCRAPER_RESULT_LIMIT must be between 1 and 100, got %d", cfg.PaperScraper.ResultLimit)

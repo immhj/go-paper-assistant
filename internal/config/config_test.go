@@ -33,7 +33,7 @@ func TestDevelopmentHasSafeZeroConfigDefaults(t *testing.T) {
 		cfg.Platform.VerificationIPHourlyLimit != 20 {
 		t.Fatalf("unexpected verification defaults: %+v", cfg.Platform)
 	}
-	if cfg.Platform.CostHourlyUSD != 2 || cfg.Platform.CostDailyUSD != 10 || !cfg.Platform.EmailVerificationRequired || !cfg.Platform.CostBreakerEnabled {
+	if cfg.Platform.CostHourlyUSD != 1 || cfg.Platform.CostDailyUSD != 5 || !cfg.Platform.EmailVerificationRequired || !cfg.Platform.CostBreakerEnabled {
 		t.Fatalf("unexpected production-safety defaults: %+v", cfg.Platform)
 	}
 }

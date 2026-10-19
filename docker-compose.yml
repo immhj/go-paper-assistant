@@ -30,10 +30,14 @@ services:
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    # AOF (fsync every second) so cost-breaker, login-throttle and verification counters
+    # survive a restart; otherwise restarting Redis would reset the daily LLM budget.
     command: >-
       sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
-      exec redis-server --save "" --appendonly no --requirepass "$$REDIS_PASSWORD";
-      else exec redis-server --save "" --appendonly no; fi'
+      exec redis-server --save "" --appendonly yes --appendfsync everysec --requirepass "$$REDIS_PASSWORD";
+      else exec redis-server --save "" --appendonly yes --appendfsync everysec; fi'
+    volumes:
+      - redis-data:/data
     expose:
       - "6379"
     healthcheck:
@@ -170,8 +174,8 @@ services:
       PLATFORM_GUEST_IMPORT_ENABLED: ${PLATFORM_GUEST_IMPORT_ENABLED:-true}
       PLATFORM_EMAIL_VERIFICATION_REQUIRED: ${PLATFORM_EMAIL_VERIFICATION_REQUIRED:-true}
       PLATFORM_COST_BREAKER_ENABLED: ${PLATFORM_COST_BREAKER_ENABLED:-true}
-      PLATFORM_COST_HOURLY_USD: ${PLATFORM_COST_HOURLY_USD:-2}
-      PLATFORM_COST_DAILY_USD: ${PLATFORM_COST_DAILY_USD:-10}
+      PLATFORM_COST_HOURLY_USD: ${PLATFORM_COST_HOURLY_USD:-1}
+      PLATFORM_COST_DAILY_USD: ${PLATFORM_COST_DAILY_USD:-5}
       PLATFORM_API_PER_MINUTE: ${PLATFORM_API_PER_MINUTE:-60}
       PLATFORM_LOGIN_FAILURE_LIMIT: ${PLATFORM_LOGIN_FAILURE_LIMIT:-5}
       PLATFORM_LOGIN_IP_FAILURE_LIMIT: ${PLATFORM_LOGIN_IP_FAILURE_LIMIT:-20}
@@ -195,6 +199,8 @@ services:
       DEEPSEEK_PEAK_INPUT_PER_M: ${DEEPSEEK_PEAK_INPUT_PER_M:-0.30}
       DEEPSEEK_PEAK_CACHE_HIT_PER_M: ${DEEPSEEK_PEAK_CACHE_HIT_PER_M:-0.006}
       DEEPSEEK_PEAK_OUTPUT_PER_M: ${DEEPSEEK_PEAK_OUTPUT_PER_M:-1.20}
+      DEEPSEEK_MAX_TOKENS: ${DEEPSEEK_MAX_TOKENS:-4096}
+      DEEPSEEK_THINKING_MAX_TOKENS: ${DEEPSEEK_THINKING_MAX_TOKENS:-16384}
       FULLTEXT_DIR: /app/data/fulltext
       PDFTOTEXT_BIN: ${PDFTOTEXT_BIN:-pdftotext}
       MAX_PDF_BYTES: ${MAX_PDF_BYTES:-52428800}
@@ -214,5 +220,6 @@ services:
 
 volumes:
   mysql-data:
+  redis-data:
   redisinsight-data:
   fulltext-data:
