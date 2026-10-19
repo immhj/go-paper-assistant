@@ -95,21 +95,26 @@ func main() {
 	)
 	adminService := service.NewAdmin(store, application.EmergencyStop())
 	platformController := controller.NewPlatform(platformService, cfg)
-	handler := router.New(router.Dependencies{
+	deps := router.Dependencies{
 		Config: cfg, Health: controller.NewHealth(adminService), Admin: controller.NewAdmin(adminService, cfg),
 		Platform: platformController, Chat: controller.NewChat(application, platformService).BindPlatformCSRF(platformController),
 		Projects: controller.NewProjects(application, platformController),
 		Papers:   controller.NewPapers(application, platformController, cfg.FullText.MaxPDFBytes),
-	})
-	server := &http.Server{Addr: cfg.Address, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	}
+	server := &http.Server{Addr: cfg.Address, Handler: router.New(deps), ReadHeaderTimeout: 10 * time.Second}
+	adminServer := &http.Server{Addr: cfg.AdminAddress, Handler: router.NewAdmin(deps), ReadHeaderTimeout: 10 * time.Second}
 
 	cleanupExpiredGuests(ctx, platformService)
 	go runGuestCleanup(ctx, platformService)
 
-	serverErrors := make(chan error, 1)
+	serverErrors := make(chan error, 2)
 	go func() {
 		slog.Info("HTTP server started", "addr", cfg.Address, "environment", cfg.Environment)
 		serverErrors <- server.ListenAndServe()
+	}()
+	go func() {
+		slog.Info("admin server started", "addr", cfg.AdminAddress)
+		serverErrors <- adminServer.ListenAndServe()
 	}()
 	if cfg.QQ.Enabled {
 		go func() {
@@ -133,6 +138,9 @@ func main() {
 	defer cancel()
 	if err = server.Shutdown(shutdownCtx); err != nil {
 		slog.Error("HTTP shutdown", "error", err)
+	}
+	if err = adminServer.Shutdown(shutdownCtx); err != nil {
+		slog.Error("admin HTTP shutdown", "error", err)
 	}
 	if err = application.Wait(shutdownCtx); err != nil {
 		slog.Error("QQ worker shutdown", "error", err)

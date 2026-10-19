@@ -109,6 +109,24 @@ func TestUnsetAppEnvDefaultsToProductionAndNeverUsesDevFallbacks(t *testing.T) {
 	}
 }
 
+func TestAdminListenerDefaultsToLoopbackAndMustDifferFromPublic(t *testing.T) {
+	clearSecurityEnv(t)
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("APP_ADDR", "")
+	t.Setenv("ADMIN_ADDR", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.AdminAddress != "127.0.0.1:9090" {
+		t.Fatalf("admin listener default = %q, want loopback", cfg.AdminAddress)
+	}
+	t.Setenv("ADMIN_ADDR", ":8080")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "ADMIN_ADDR") {
+		t.Fatalf("admin listener sharing the public address accepted: %v", err)
+	}
+}
+
 func TestUnknownAppEnvIsRejected(t *testing.T) {
 	for _, value := range []string{"prod", "staging", "dev"} {
 		clearSecurityEnv(t)

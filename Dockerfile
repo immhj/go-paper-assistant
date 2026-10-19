@@ -16,6 +16,6 @@ COPY --from=build /out/paper-assistant /app/paper-assistant
 COPY web /app/web
 RUN mkdir -p /app/data/fulltext && chown -R app:app /app
 USER app
-EXPOSE 8080
+EXPOSE 8080 9090
 VOLUME ["/app/data/fulltext"]
 ENTRYPOINT ["/app/paper-assistant"]

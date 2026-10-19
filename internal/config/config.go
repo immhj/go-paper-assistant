@@ -13,8 +13,11 @@ import (
 // Config contains process configuration. Secrets are read from environment variables and are
 // never persisted by the application.
 type Config struct {
-	Environment       string
-	Address           string
+	Environment string
+	Address     string
+	// AdminAddress is the admin/metrics listener (ADR 0023). It must stay on loopback on the
+	// host; inside a container it binds all interfaces and compose publishes it to 127.0.0.1 only.
+	AdminAddress      string
 	ShutdownTimeout   time.Duration
 	TrustedProxyCIDRs []netip.Prefix
 	MySQL             MySQLConfig
@@ -141,6 +144,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Environment:       strings.ToLower(env("APP_ENV", EnvProduction)),
 		Address:           env("APP_ADDR", ":8080"),
+		AdminAddress:      env("ADMIN_ADDR", "127.0.0.1:9090"),
 		ShutdownTimeout:   r.envDuration("SHUTDOWN_TIMEOUT", 15*time.Second),
 		TrustedProxyCIDRs: trustedProxyCIDRs,
 		MySQL: MySQLConfig{
@@ -226,6 +230,9 @@ func Load() (Config, error) {
 func validate(cfg Config) error {
 	if cfg.MySQL.DSN == "" {
 		return errors.New("MYSQL_DSN is required")
+	}
+	if cfg.AdminAddress == cfg.Address {
+		return errors.New("ADMIN_ADDR must differ from APP_ADDR: admin routes are never served on the public listener")
 	}
 	if cfg.Redis.Addr == "" || cfg.Redis.DB < 0 || cfg.Redis.DialTimeout <= 0 || cfg.Redis.ReadTimeout <= 0 || cfg.Redis.WriteTimeout <= 0 {
 		return errors.New("Redis configuration is invalid")

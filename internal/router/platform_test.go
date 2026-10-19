@@ -22,6 +22,7 @@ import (
 
 type testServer struct {
 	h            http.Handler
+	admin        http.Handler
 	store        *daotest.FakePlatformStore
 	platform     *service.Platform
 	verification *verification.Fake
@@ -43,10 +44,11 @@ func newTestServer(t *testing.T) *testServer {
 		Admin:       config.AdminConfig{Username: "admin", Password: "admin"},
 	}
 	platformController := controller.NewPlatform(platformSvc, cfg)
+	deps := router.Dependencies{
+		Config: cfg, Platform: platformController, Chat: controller.NewChat(nil, platformSvc),
+	}
 	return &testServer{
-		h: router.New(router.Dependencies{
-			Config: cfg, Platform: platformController, Chat: controller.NewChat(nil, platformSvc),
-		}),
+		h: router.New(deps), admin: router.NewAdmin(deps),
 		store: store, platform: platformSvc, verification: verificationStore, mailer: mailer,
 	}
 }
@@ -299,16 +301,32 @@ func TestDeleteGuestRequiresSameOrigin(t *testing.T) {
 	}
 }
 
+func TestPublicHandlerNeverServesAdminRoutes(t *testing.T) {
+	fixture := newTestServer(t)
+	admin := func(r *http.Request) { r.SetBasicAuth("admin", "admin") }
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/admin/"},
+		{http.MethodGet, "/api/admin/guests"},
+		{http.MethodGet, "/api/admin/accounts"},
+		{http.MethodPost, "/api/admin/runtime-controls"},
+	} {
+		// Even with valid credentials the public listener must not know these routes (ADR 0023).
+		if rec := do(t, fixture.h, tc.method, tc.path, nil, admin); rec.Code != http.StatusNotFound {
+			t.Fatalf("public %s %s: got %d, want 404", tc.method, tc.path, rec.Code)
+		}
+	}
+}
+
 func TestRemovedInvitesAre404AndAdminGuestsUsesBasicAuth(t *testing.T) {
 	fixture := newTestServer(t)
 	admin := func(r *http.Request) { r.SetBasicAuth("admin", "admin") }
-	if rec := do(t, fixture.h, http.MethodGet, "/api/admin/invites", nil, admin); rec.Code != http.StatusNotFound {
+	if rec := do(t, fixture.admin, http.MethodGet, "/api/admin/invites", nil, admin); rec.Code != http.StatusNotFound {
 		t.Fatalf("removed invites endpoint: got %d body=%s", rec.Code, rec.Body.String())
 	}
-	if rec := do(t, fixture.h, http.MethodGet, "/api/admin/guests", nil, nil); rec.Code != http.StatusUnauthorized {
+	if rec := do(t, fixture.admin, http.MethodGet, "/api/admin/guests", nil, nil); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin guests without basic auth: got %d", rec.Code)
 	}
-	rec := do(t, fixture.h, http.MethodGet, "/api/admin/guests", nil, admin)
+	rec := do(t, fixture.admin, http.MethodGet, "/api/admin/guests", nil, admin)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"active":0`) {
 		t.Fatalf("admin guests: got %d body=%s", rec.Code, rec.Body.String())
 	}

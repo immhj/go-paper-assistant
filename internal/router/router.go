@@ -27,11 +27,9 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health != nil {
 		mux.HandleFunc("GET /healthz", deps.Health.Get)
 	}
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
+	// "/{$}" matches only the root, so unknown paths of any method get a uniform 404 instead of a
+	// 405 that would hint which paths exist.
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/app/", http.StatusTemporaryRedirect)
 	})
 
@@ -84,7 +82,14 @@ func New(deps Dependencies) http.Handler {
 		}
 	}
 	mux.Handle("GET /app/", http.StripPrefix("/app/", http.FileServer(http.Dir("web/app"))))
+	// Admin routes are deliberately absent here: they are served only by NewAdmin on the
+	// loopback-bound admin listener (ADR 0023), so /admin/ and /api/admin/* are 404 publicly.
+	return recoverer(logger(securityHeaders(mux)))
+}
 
+// NewAdmin builds the handler for the admin listener. It must only be bound to a loopback
+// address (reached through an SSH tunnel); Basic Auth remains as a second line of defence.
+func NewAdmin(deps Dependencies) http.Handler {
 	adminMux := http.NewServeMux()
 	adminMux.Handle("GET /admin/", http.StripPrefix("/admin/", http.FileServer(http.Dir("web/admin"))))
 	if deps.Admin != nil {
@@ -102,6 +107,10 @@ func New(deps Dependencies) http.Handler {
 		adminMux.HandleFunc("POST /api/admin/accounts/{accountID}/status", deps.Platform.SetAccountStatus)
 		adminMux.HandleFunc("GET /api/admin/guests", deps.Platform.GuestMetrics)
 	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/admin/", http.StatusTemporaryRedirect)
+	})
 	mux.Handle("GET /admin/", basicAuth(deps.Config.Admin, adminMux))
 	mux.Handle("GET /api/admin/", basicAuth(deps.Config.Admin, adminMux))
 	mux.Handle("POST /api/admin/", basicAuth(deps.Config.Admin, adminMux))

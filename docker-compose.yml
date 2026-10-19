@@ -130,6 +130,8 @@ services:
         condition: service_healthy
     environment:
       APP_ADDR: :8080
+      # Binds all interfaces inside the container only; the host port mapping below is loopback-only.
+      ADMIN_ADDR: :9090
       # Fail-closed default: local development must opt in with APP_ENV=development in .env.
       APP_ENV: ${APP_ENV:-production}
       TZ: ${TZ:-Asia/Shanghai}
@@ -203,6 +205,9 @@ services:
       start_period: 30s
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
+      # Admin + metrics listener (ADR 0023). Host side is hard-wired to loopback on purpose:
+      # reach it through `ssh -L 9090:127.0.0.1:9090 <server>`, never expose it publicly.
+      - "127.0.0.1:${ADMIN_PORT:-9090}:9090"
     volumes:
       - fulltext-data:/app/data/fulltext
 
