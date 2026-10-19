@@ -1,0 +1,98 @@
+# Production overlay for a single public-IP host (ADR 0022, 0023).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Images are built on a workstation and shipped by scripts/release.ps1, so nothing is built
+# or pulled from Docker Hub on the server (mainland hosts usually cannot reach it).
+#
+# Exposure on the host:
+#   80, 443      Caddy only (TLS with a Let's Encrypt IP certificate)
+#   127.0.0.1:9090  admin panel + /metrics, reached via `ssh -L 9090:127.0.0.1:9090`
+#   nothing else: MySQL, Redis, the app's public port and the sidecar stay on the
+#   internal network.
+#
+# Sizing targets a 2 vCPU / 4 GiB VM; adjust mem_limit together if the host differs.
+
+x-logging: &logging
+  # Default json-file logging grows without bound and eventually fills the disk.
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+networks:
+  default:
+    # Fixed subnet so Caddy has a fixed address the app can trust for X-Forwarded-For.
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+services:
+  caddy:
+    image: caddy:${CADDY_VERSION:-2.11.7-alpine}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      PUBLIC_IP: ${PUBLIC_IP:?set PUBLIC_IP to the server's public IPv4 address}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL for Let's Encrypt expiry notices}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and the ACME account key. Losing this volume forces re-issuance and
+      # counts against Let's Encrypt rate limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      default:
+        ipv4_address: 172.30.0.10
+    mem_limit: 128m
+    <<: *logging
+
+  app:
+    build: !reset null
+    pull_policy: never
+    environment:
+      APP_ENV: production
+      LOG_FORMAT: json
+      # Only Caddy may set X-Forwarded-For; everything else is treated as the client itself.
+      TRUSTED_PROXY_CIDRS: 172.30.0.10/32
+    # Public traffic reaches the app only through Caddy on the internal network.
+    ports: !override
+      - "127.0.0.1:${ADMIN_PORT:-9090}:9090"
+    mem_limit: 1g
+    <<: *logging
+
+  paperscraper:
+    build: !reset null
+    pull_policy: never
+    mem_limit: 512m
+    <<: *logging
+
+  mysql:
+    ports: !reset []
+    environment:
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set a strong MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set a strong MYSQL_ROOT_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # Fit a 4 GiB host; the default 128 MiB pool is too small, the dataset is far below 512 MiB.
+      - --innodb-buffer-pool-size=512M
+    mem_limit: 1g
+    <<: *logging
+
+  redis:
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set a strong REDIS_PASSWORD}
+    mem_limit: 256m
+    <<: *logging
+
+volumes:
+  caddy-data:
+  caddy-config:

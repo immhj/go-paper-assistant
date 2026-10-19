@@ -87,6 +87,8 @@ services:
       - "${ADMINER_BIND:-127.0.0.1}:${ADMINER_PORT:-8081}:8080"
 
   paperscraper:
+    # Tagged so scripts/release.ps1 can ship the exact build; "local" for everyday development.
+    image: paper-assistant-paperscraper:${IMAGE_TAG:-local}
     build:
       context: ./services/paperscraper
       dockerfile: Dockerfile
@@ -121,6 +123,7 @@ services:
       start_period: 30s
 
   app:
+    image: paper-assistant-app:${IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile

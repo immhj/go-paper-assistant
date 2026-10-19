@@ -1,0 +1,33 @@
+# TLS for a bare public IP (ADR 0022). Let's Encrypt only issues IP certificates under the
+# "shortlived" profile (~6 days), so Caddy renews them continuously; keep ports 80 and 443
+# reachable from the internet or renewal fails and the site goes down within a week.
+{
+	email {$ACME_EMAIL}
+}
+
+{$PUBLIC_IP} {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# The admin panel and /metrics live on a separate loopback listener (ADR 0023). These paths
+	# already 404 on the public app port; refuse them at the edge as well.
+	@internal path /admin /admin/* /api/admin/* /metrics
+	respond @internal 404
+
+	reverse_proxy app:8080 {
+		# SSE chat: forward every event immediately instead of buffering the response.
+		flush_interval -1
+		# No trusted_proxies are configured, so Caddy discards any client-supplied
+		# X-Forwarded-For and sends the real peer address; the app trusts only 172.30.0.10.
+	}
+}

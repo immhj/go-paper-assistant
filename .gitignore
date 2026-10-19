@@ -2,6 +2,8 @@
 *.log
 /server.exe
 data/backups/*
+# deploy/backup.sh output when run from a checkout
+/backups/
 __pycache__/
 *.py[cod]
 bin/
