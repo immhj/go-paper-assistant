@@ -37,7 +37,11 @@ $baseImages = 'mysql:8.4.6', 'redis:7.4.1-alpine', 'caddy:2.11.7-alpine'
 
 function Step([string] $what, [scriptblock] $block) {
     Write-Host "==> $what" -ForegroundColor Cyan
-    & $block
+    # docker/ssh write progress to stderr. Under Windows PowerShell 5.1 with 'Stop', redirected
+    # native stderr becomes a terminating error, so judge native commands by exit code only.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $block } finally { $ErrorActionPreference = $previous }
     if ($LASTEXITCODE -ne 0) { throw "$what failed (exit $LASTEXITCODE)" }
 }
 function Remote([string] $what, [string] $arguments) {
