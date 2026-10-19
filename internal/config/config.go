@@ -250,7 +250,7 @@ func validate(cfg Config) error {
 		return errors.New("ADMIN_ADDR must differ from APP_ADDR: admin routes are never served on the public listener")
 	}
 	if cfg.Redis.Addr == "" || cfg.Redis.DB < 0 || cfg.Redis.DialTimeout <= 0 || cfg.Redis.ReadTimeout <= 0 || cfg.Redis.WriteTimeout <= 0 {
-		return errors.New("Redis configuration is invalid")
+		return errors.New("redis configuration is invalid")
 	}
 	if cfg.QQ.Enabled && (cfg.QQ.AppID == "" || cfg.QQ.AppSecret == "") {
 		return errors.New("QQ_APP_ID and QQ_APP_SECRET are required when QQ_ENABLED=true")

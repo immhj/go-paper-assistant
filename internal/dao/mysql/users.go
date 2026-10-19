@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"paperassistant/internal/dao"
 	"paperassistant/internal/domain"
@@ -54,5 +53,3 @@ func maskOpenID(value string) string {
 	}
 	return value[:4] + "…" + value[len(value)-4:]
 }
-
-func utcNow() time.Time { return time.Now().UTC() }

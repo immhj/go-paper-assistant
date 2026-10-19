@@ -53,7 +53,7 @@ func (s *Store) ImportGuestSession(ctx context.Context, accountID uint64, tokenH
 	if err != nil {
 		return domain.GuestImportResult{}, fmt.Errorf("begin guest import: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	guest, err := scanGuest(tx.QueryRowContext(ctx, `SELECT `+guestColumns+` FROM guest_sessions WHERE token_hash=? FOR UPDATE`, tokenHash))
 	if err != nil {
 		return domain.GuestImportResult{}, dao.ErrGuestUnavailable

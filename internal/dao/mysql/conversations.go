@@ -26,7 +26,7 @@ func (s *Store) CreateConversation(ctx context.Context, userID uint64, title str
 	if err != nil {
 		return domain.Conversation{}, fmt.Errorf("begin create conversation: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 
 	var locked uint64
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE id=? FOR UPDATE`, userID).Scan(&locked); err != nil {
@@ -67,7 +67,7 @@ func (s *Store) CreateConversationForMessage(ctx context.Context, userID uint64,
 	if err != nil {
 		return domain.Conversation{}, fmt.Errorf("begin create conversation for message: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	var locked uint64
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE id=? FOR UPDATE`, userID).Scan(&locked); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -134,7 +134,7 @@ func (s *Store) SwitchConversation(ctx context.Context, userID uint64, number ui
 	if err != nil {
 		return domain.Conversation{}, fmt.Errorf("begin switch conversation: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	conversation, err := scanConversation(tx.QueryRowContext(ctx, `SELECT `+conversationColumns+`
 		FROM conversations WHERE user_id=? AND conversation_no=? AND status='active' FOR UPDATE`, userID, number))
 	if err != nil {
@@ -162,7 +162,7 @@ func (s *Store) ArchiveConversation(ctx context.Context, userID uint64, number u
 	if err != nil {
 		return fmt.Errorf("begin archive conversation: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	var id uint64
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM conversations WHERE user_id=? AND conversation_no=? AND status='active' FOR UPDATE`, userID, number).Scan(&id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -195,7 +195,7 @@ func (s *Store) RestoreConversation(ctx context.Context, userID, conversationID 
 	if err != nil {
 		return fmt.Errorf("begin restore conversation: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	var status string
 	if err = tx.QueryRowContext(ctx, `SELECT status FROM conversations WHERE id=? AND user_id=? FOR UPDATE`, conversationID, userID).Scan(&status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

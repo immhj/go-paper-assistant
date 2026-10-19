@@ -127,14 +127,14 @@ func strictBearer(header string) (string, bool) {
 }
 
 func setGuestCookie(w http.ResponseWriter, token string, secure bool) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: HttpOnly+SameSite always; Secure is set whenever served over HTTPS (production)
 		Name: guestCookieName, Value: token, Path: "/", MaxAge: guestCookieMaxAge,
 		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
 	})
 }
 
 func clearGuestCookie(w http.ResponseWriter, secure bool) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: deletion cookie mirrors the attributes of setGuestCookie
 		Name: guestCookieName, Value: "", Path: "/", MaxAge: -1,
 		Expires: time.Unix(1, 0).UTC(), HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
 	})

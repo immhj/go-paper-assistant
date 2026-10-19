@@ -77,7 +77,7 @@ func (s *Store) CreateProjectConversation(ctx context.Context, owner domain.Proj
 	if err != nil {
 		return domain.Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Conversation{}, err
 	}
@@ -118,7 +118,7 @@ func (s *Store) RenameProjectConversation(ctx context.Context, owner domain.Proj
 	if err != nil {
 		return domain.Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Conversation{}, err
 	}
@@ -151,7 +151,7 @@ func (s *Store) SelectProjectConversation(ctx context.Context, owner domain.Proj
 	if err != nil {
 		return domain.Project{}, domain.Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Project{}, domain.Conversation{}, err
 	}
@@ -193,7 +193,7 @@ func (s *Store) ArchiveProjectConversation(ctx context.Context, owner domain.Pro
 	if err != nil {
 		return domain.Conversation{}, nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Conversation{}, nil, err
 	}
@@ -246,7 +246,7 @@ func (s *Store) RestoreProjectConversation(ctx context.Context, owner domain.Pro
 	if err != nil {
 		return domain.Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Conversation{}, err
 	}
@@ -287,7 +287,7 @@ func (s *Store) InsertProjectMessage(ctx context.Context, owner domain.ProjectOw
 	if err != nil {
 		return domain.Message{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	activeID, err := lockProjectOwner(ctx, tx, owner)
 	if err != nil {
 		return domain.Message{}, err
@@ -352,7 +352,7 @@ func (s *Store) SaveProjectSearchResult(ctx context.Context, owner domain.Projec
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	activeID, err := lockProjectOwner(ctx, tx, owner)
 	if err != nil {
 		return err

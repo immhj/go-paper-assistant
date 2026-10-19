@@ -273,32 +273,3 @@ var (
 	issnPattern = regexp.MustCompile(`^\d{4}-\d{3}[\dX]$`)
 	jcrPattern  = regexp.MustCompile(`^Q[1-4]$`)
 )
-
-func matchesSpec(candidate domain.Candidate, spec domain.SearchSpec) bool {
-	text := strings.ToLower(candidate.Title)
-	if candidate.Abstract != nil {
-		text += " " + strings.ToLower(*candidate.Abstract)
-	}
-	for _, concept := range spec.Concepts {
-		terms := concept.Synonyms
-		if len(terms) == 0 {
-			terms = []string{concept.Concept}
-		}
-		matched := false
-		for _, term := range terms {
-			if value := strings.ToLower(strings.TrimSpace(term)); value != "" && strings.Contains(text, value) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	for _, term := range spec.Exclude {
-		if value := strings.ToLower(strings.TrimSpace(term)); value != "" && strings.Contains(text, value) {
-			return false
-		}
-	}
-	return true
-}

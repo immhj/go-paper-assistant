@@ -68,7 +68,7 @@ func (s *Store) AddProjectPaper(ctx context.Context, owner domain.ProjectOwner, 
 	if err != nil {
 		return domain.ProjectPaper{}, false, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	var projectID uint64
 	var status string
 	err = tx.QueryRowContext(ctx, `SELECT id,status FROM projects WHERE `+column+`=? AND project_no=? FOR UPDATE`, owner.ID, projectNo).Scan(&projectID, &status)
@@ -121,7 +121,7 @@ func (s *Store) RemoveProjectPaper(ctx context.Context, owner domain.ProjectOwne
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	project, err := loadProjectTx(ctx, tx, owner, projectNo)
 	if err != nil {
 		return err

@@ -35,7 +35,7 @@ type webTestStore struct {
 }
 
 func (s *webTestStore) EnsureActiveProject(_ context.Context, owner domain.ProjectOwner, _ bool, current json.RawMessage) (domain.Project, *domain.Conversation, bool, error) {
-	projectID := uint64(100 + owner.ID)
+	projectID := 100 + owner.ID
 	conversationID := uint64(11)
 	if owner.IsAccount() {
 		s.activeAccountCalls++
@@ -398,7 +398,7 @@ func (s *webConversationManagementStore) CreateProjectConversation(_ context.Con
 	if owner.IsGuest() {
 		id = 23
 	}
-	projectID := uint64(100 + owner.ID)
+	projectID := 100 + owner.ID
 	return domain.Conversation{ID: id, ProjectID: &projectID, ConversationNo: 3, Title: title, CurrentContext: current, Status: domain.ConversationStatusActive}, nil
 }
 func (s *webConversationManagementStore) SelectProjectConversation(_ context.Context, owner domain.ProjectOwner, _ uint32, number uint32) (domain.Project, domain.Conversation, error) {

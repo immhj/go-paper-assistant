@@ -7,15 +7,10 @@ import (
 )
 
 var (
-	RateLimited = errors.New("web request rate limited")
-	Concurrent  = errors.New("web actor already has an active turn")
-	CircuitOpen = errors.New("web model cost circuit is open")
-	Unavailable = errors.New("web guard unavailable")
-
-	ErrRateLimited = RateLimited
-	ErrConcurrent  = Concurrent
-	ErrCircuitOpen = CircuitOpen
-	ErrUnavailable = Unavailable
+	ErrRateLimited = errors.New("web request rate limited")
+	ErrConcurrent  = errors.New("web actor already has an active turn")
+	ErrCircuitOpen = errors.New("web model cost circuit is open")
+	ErrUnavailable = errors.New("web guard unavailable")
 )
 
 type ToolClass string

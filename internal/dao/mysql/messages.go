@@ -57,7 +57,7 @@ func (s *Store) SaveSearchResult(ctx context.Context, userID, conversationID uin
 	if err != nil {
 		return fmt.Errorf("begin search result transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 
 	var id uint64
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM conversations WHERE id=? AND user_id=? AND status='active' FOR UPDATE`, conversationID, userID).Scan(&id); err != nil {

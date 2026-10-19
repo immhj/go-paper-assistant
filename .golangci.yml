@@ -1,0 +1,36 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # "standard" = errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    - bodyclose     # unclosed HTTP response bodies leak connections
+    - gosec         # security-sensitive patterns
+    - misspell
+    - unconvert
+  settings:
+    gosec:
+      excludes:
+        - G104 # unchecked errors: already covered by errcheck
+        # Integer narrowing: every flagged site converts DB auto-increment IDs, row counts or
+        # small config values that are range-checked elsewhere; the rule is noise here.
+        - G115
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Tests may ignore errors from fixtures and use fixed test secrets.
+      - path: _test\.go
+        linters: [errcheck, gosec]
+      # The DAO builds SQL from compile-time column lists (prefixXColumns, traceCost) and
+      # whitelisted identifiers (ownerColumn); every value is a bound ? parameter.
+      - path: internal/dao/mysql/
+        linters: [gosec]
+        text: G202
+
+formatters:
+  enable:
+    - gofmt

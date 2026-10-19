@@ -66,7 +66,7 @@ func (s *Store) EnsureActiveProject(ctx context.Context, owner domain.ProjectOwn
 	if err != nil {
 		return domain.Project{}, nil, false, fmt.Errorf("begin ensure active project: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	activeID, err := lockProjectOwner(ctx, tx, owner)
 	if err != nil {
 		return domain.Project{}, nil, false, err
@@ -196,7 +196,7 @@ func (s *Store) CreateProject(ctx context.Context, owner domain.ProjectOwner, ti
 	if err != nil {
 		return domain.Project{}, domain.Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Project{}, domain.Conversation{}, err
 	}
@@ -307,7 +307,7 @@ func (s *Store) SelectProject(ctx context.Context, owner domain.ProjectOwner, pr
 	if err != nil {
 		return domain.Project{}, nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	if _, err = lockProjectOwner(ctx, tx, owner); err != nil {
 		return domain.Project{}, nil, err
 	}
@@ -337,7 +337,7 @@ func (s *Store) ArchiveProject(ctx context.Context, owner domain.ProjectOwner, p
 	if err != nil {
 		return domain.Project{}, nil, nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	activeID, err := lockProjectOwner(ctx, tx, owner)
 	if err != nil {
 		return domain.Project{}, nil, nil, err
@@ -388,7 +388,7 @@ func (s *Store) RestoreProject(ctx context.Context, owner domain.ProjectOwner, p
 	if err != nil {
 		return domain.Project{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	activeID, err := lockProjectOwner(ctx, tx, owner)
 	if err != nil {
 		return domain.Project{}, err

@@ -39,7 +39,7 @@ func (c *Client) RunGateway(ctx context.Context, handler func(context.Context, I
 			return ctx.Err()
 		}
 		slog.Error("QQ gateway disconnected", "error", err, "retry_in", backoff)
-		jitter := time.Duration(rand.Int64N(int64(backoff/2 + 1)))
+		jitter := time.Duration(rand.Int64N(int64(backoff/2 + 1))) //nolint:gosec // G404: reconnect jitter, not a security value
 		timer := time.NewTimer(backoff + jitter)
 		select {
 		case <-ctx.Done():
@@ -64,7 +64,7 @@ func (c *Client) runSession(ctx context.Context, state *sessionState, handler fu
 			return err
 		}
 	}
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, gatewayURL, nil)
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, gatewayURL, nil) //nolint:bodyclose // gorilla/websocket owns the handshake response body
 	if err != nil {
 		return fmt.Errorf("dial QQ gateway: %w", err)
 	}

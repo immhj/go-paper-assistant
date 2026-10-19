@@ -172,8 +172,10 @@ func TestUploadMatchesPaperByDOIOrTitle(t *testing.T) {
 func TestSlidingWindowLimiter(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	limiter := newSlidingWindowLimiter(2, time.Hour, func() time.Time { return now })
-	if !limiter.Allow(1) || !limiter.Allow(1) || limiter.Allow(1) {
-		t.Fatal("third upload inside the window must be refused")
+	for i, want := range []bool{true, true, false} {
+		if got := limiter.Allow(1); got != want {
+			t.Fatalf("upload %d inside the window: allowed=%v, want %v", i+1, got, want)
+		}
 	}
 	if !limiter.Allow(2) {
 		t.Fatal("limits are per account")
@@ -191,7 +193,6 @@ type fullTextTestStore struct {
 	private       map[uint64]string // accountID -> text for paper
 	sharedUpdates int
 	upserts       []string
-	messages      []domain.Message
 }
 
 func (s *fullTextTestStore) GetPaper(_ context.Context, id uint64) (domain.Paper, error) {

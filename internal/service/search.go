@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"regexp"
 	"sort"
@@ -193,113 +192,12 @@ type searchToolPlan struct {
 	ExcludeSeen bool   `json:"exclude_seen"`
 }
 
-func (a *Application) planPaperSearch(ctx context.Context, query string, history []domain.Message, current domain.SearchContext) (searchToolPlan, float64) {
-	fallback := fallbackSearchPlan(query, current)
-	if !a.model.Available() {
-		return fallback, 0
-	}
-	var historyText strings.Builder
-	for _, message := range history {
-		if message.Content != nil {
-			historyText.WriteString("- ")
-			historyText.WriteString(*message.Content)
-			historyText.WriteByte('\n')
-		}
-	}
-	currentSpec, _ := json.Marshal(current.Spec)
-	tool := deepseek.ToolDefinition{Type: "function", Function: deepseek.ToolFunction{
-		Name:        "search_papers",
-		Description: "检索论文。count 是本次希望返回的新论文数；mode=continue 表示规格不变继续找，refine 表示修改当前规格，restart 表示新方向；exclude_seen 表示排除本会话已展示论文。",
-		Parameters: map[string]any{
-			"type": "object", "additionalProperties": false,
-			"properties": map[string]any{
-				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": maxSearchPapers},
-				"mode":         map[string]any{"type": "string", "enum": []string{"continue", "refine", "restart"}},
-				"exclude_seen": map[string]any{"type": "boolean"},
-			},
-			"required": []string{"count", "mode", "exclude_seen"},
-		},
-	}}
-	call, usage, err := a.model.CallTool(ctx, deepseek.ToolRequest{
-		ToolName: "search_papers", Tools: []deepseek.ToolDefinition{tool}, Messages: []deepseek.Message{
-			{Role: "system", Content: `你是论文检索 Agent。每次必须且只能调用一次 search_papers。理解用户是在继续同一方向、修改当前条件还是开始新方向，并准确提取数量。规则："再来/再找/继续/更多N篇"=>continue 且 exclude_seen=true；在当前方向增加年份或排除条件=>refine 且 exclude_seen=true；明确新主题=>restart。count 未指定时为5，最大10。不要把数量当作学术关键词。`},
-			{Role: "user", Content: "当前方向：" + current.Name + "\n当前规格：" + string(currentSpec) + "\n已展示论文数：" + strconv.Itoa(len(current.Ordinals)) + "\n本轮用户消息：" + query + "\n最近用户消息：\n" + historyText.String()},
-		},
-	})
-	if err != nil {
-		slog.Error("search agent tool decision failed; using deterministic fallback", "error", err)
-		return fallback, usage.CostUSD
-	}
-	if call.Name != "search_papers" || len(call.Arguments) > 2048 {
-		slog.Error("search agent returned an invalid tool call", "name", call.Name, "arguments_bytes", len(call.Arguments))
-		return fallback, usage.CostUSD
-	}
-	decoder := json.NewDecoder(strings.NewReader(call.Arguments))
-	decoder.DisallowUnknownFields()
-	var plan searchToolPlan
-	if err = decoder.Decode(&plan); err != nil {
-		slog.Error("decode search_papers arguments; using deterministic fallback", "error", err)
-		return fallback, usage.CostUSD
-	}
-	var trailing any
-	if err = decoder.Decode(&trailing); err != io.EOF {
-		slog.Error("search_papers arguments contain trailing JSON; using deterministic fallback")
-		return fallback, usage.CostUSD
-	}
-	if plan.Count < 1 || plan.Count > maxSearchPapers || (plan.Mode != "continue" && plan.Mode != "refine" && plan.Mode != "restart") {
-		slog.Error("search_papers arguments failed validation", "count", plan.Count, "mode", plan.Mode)
-		return fallback, usage.CostUSD
-	}
-	// Explicit numeric and continuation phrases are deterministic constraints,
-	// not suggestions. The Agent chooses ambiguous intent; Go enforces what the
-	// user stated literally so “再检索5篇” cannot become a restart.
-	if count, explicit := explicitRequestedPaperCount(query); explicit {
-		plan.Count = count
-	}
-	if explicitContinue(query, current) {
-		plan.Mode = "continue"
-		plan.ExcludeSeen = true
-	}
-	return plan, usage.CostUSD
-}
-
-func fallbackSearchPlan(query string, current domain.SearchContext) searchToolPlan {
-	plan := searchToolPlan{Count: requestedPaperCount(query), Mode: "restart"}
-	if mode, explicit := fallbackCurrentMode(query, current); explicit {
-		plan.Mode = mode
-		plan.ExcludeSeen = true
-	}
-	return plan
-}
-
 func explicitContinue(query string, current domain.SearchContext) bool {
 	if len(current.Spec.Concepts) == 0 {
 		return false
 	}
 	lower := strings.ToLower(query)
 	return strings.Contains(lower, "再来") || strings.Contains(lower, "再找") || strings.Contains(lower, "继续") || strings.Contains(lower, "更多") || strings.Contains(lower, "另外") || strings.Contains(lower, "再检索")
-}
-
-func fallbackCurrentMode(query string, current domain.SearchContext) (string, bool) {
-	if len(current.Spec.Concepts) == 0 {
-		return "", false
-	}
-	lower := strings.ToLower(query)
-	refines := strings.Contains(lower, "限定") || strings.Contains(lower, "以后") || strings.Contains(lower, "之前") || strings.Contains(lower, "排除") || strings.Contains(lower, "不要") || strings.Contains(lower, "只要") || strings.Contains(lower, "年份")
-	if refines {
-		return "refine", true
-	}
-	if explicitContinue(query, current) {
-		return "continue", true
-	}
-	return "", false
-}
-
-func requestedPaperCount(query string) int {
-	if count, explicit := explicitRequestedPaperCount(query); explicit {
-		return count
-	}
-	return 5
 }
 
 func explicitRequestedPaperCount(query string) (int, bool) {
