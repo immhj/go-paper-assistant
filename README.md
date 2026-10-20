@@ -69,14 +69,45 @@ docker compose up -d --build
 
 ## 测试
 
+日常改动先跑与改动范围对应的测试；提交前运行完整确定性检查。CI 会在每个 push 和 PR 自动运行相同检查，并额外启动真实 MySQL、Redis 和整套 Compose 服务。
+
 ```powershell
+# Go：格式、静态检查、单测与覆盖率（覆盖率仅展示，不设阈值）
+gofmt -l ./cmd ./internal
 go vet ./...
-go test -race ./...                               # race 需要 cgo，CI 上在 Linux 运行
-golangci-lint run                                 # 配置见 .golangci.yml
-cd services/paperscraper; python -m unittest test_ieee
+go test -count=1 -coverprofile coverage.out ./...
+go tool cover -func coverage.out
+
+# Go race：Windows 本机若未安装 C 编译器，用 Linux 容器运行
+docker run --rm -v "${PWD}:/src" -w /src golang:1.26-bookworm sh -c "go test -race -count=1 ./..."
+
+# 安全与前端语法
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+node scripts/check-inline-js.mjs
+
+# Python sidecar（先安装 requirements，或在其镜像中运行）
+cd services/paperscraper; python -m unittest discover -v
 ```
 
-CI（GitHub Actions）在每次推送时运行以上全部检查并构建两个镜像。
+真实 MySQL 集成测试需要一个**专用、可创建和删除测试库**的 MySQL 实例，绝不能使用 `MYSQL_DSN` 指向的开发或生产库：
+
+```powershell
+$env:MYSQL_TEST_ADMIN_DSN='root:password@tcp(127.0.0.1:3306)/?charset=utf8mb4&parseTime=true&loc=UTC'
+go test -race -count=1 -tags=integration ./internal/dao/mysql
+```
+
+该测试会为每个用例创建随机 schema、执行权威的 `docs/schema.sql`、验证 production store 启动兼容性，测试结束后只删除自己创建的 schema。覆盖访客精读事务幂等性、项目导入编号重分配与并发编号分配。
+
+`cmd/smoke` 是 E2E 冒烟程序。CI 会以独立 Compose 项目启动 MySQL、Redis、sidecar 和 app，并在**不配置模型密钥**的条件下验证：健康检查、访客 cookie、空会话、SSE 降级回复和自动创建的当前项目。对已运行的隔离实例可执行：
+
+```powershell
+$env:SMOKE_BASE_URL='http://127.0.0.1:18080'
+go run ./cmd/smoke
+```
+
+发布脚本使用 `-health-only` 与 `-connect-addr` 走 SSH 隧道验证生产 Caddy HTTPS 路径；该模式只读 `GET /healthz`，不创建访客记录、不产生模型调用。
+
+模型评测与真实模型调用不在普通 CI 中运行。`Live Model Evaluation` workflow 仅在 main 的规划/相关性提示词或种子用例变更后、或手动触发时执行；需在 GitHub Actions secrets 中配置 `DEEPSEEK_API_KEY`。它运行 50 条人工种子用例、每次预留最高 $0.01 且总预算为 $0.20，结果写入 Job Summary 并上传 artifact，但**不阻断合并或发布**。见 [ADR 0024](docs/adr/0024-ci-gates-and-non-blocking-llm-eval.md)。
 
 ## 部署
 

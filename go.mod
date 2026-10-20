@@ -2,6 +2,8 @@ module paperassistant
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gorilla/websocket v1.5.3

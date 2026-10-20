@@ -28,9 +28,13 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: Tests (race detector)
-        run: go test -race -count=1 -coverprofile=coverage.out ./...
+        run: go test -race -count=1 -coverprofile coverage.out ./...
       - name: Coverage summary
-        run: go tool cover -func=coverage.out | tail -n 1
+        run: |
+          echo '## Go coverage' >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func coverage.out | tail -n 1 >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
       - name: Build
         run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/server
 
@@ -46,6 +50,67 @@ jobs:
         with:
           version: v2.15.0
 
+  security:
+    name: Dependency vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Go vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: services/paperscraper/requirements.txt
+      - name: Python dependency vulnerability check
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit==2.9.0
+          pip-audit --requirement services/paperscraper/requirements.txt
+
+  integration:
+    name: MySQL and Redis integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4.6
+        env:
+          MYSQL_ROOT_PASSWORD: integration-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pintegration-root-password"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7.4.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      MYSQL_TEST_ADMIN_DSN: root:integration-root-password@tcp(127.0.0.1:3306)/?charset=utf8mb4&parseTime=true&loc=UTC
+      REDIS_TEST_ADDR: 127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run MySQL and Redis integration tests
+        run: go test -race -count=1 -tags=integration ./internal/dao/mysql ./internal/provider/ratelimit
+
+  frontend:
+    name: Frontend syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Check inline JavaScript syntax
+        run: node scripts/check-inline-js.mjs
+
   paperscraper:
     name: Python sidecar tests
     runs-on: ubuntu-latest
@@ -60,7 +125,34 @@ jobs:
           cache: pip
           cache-dependency-path: services/paperscraper/requirements.txt
       - run: pip install -r requirements.txt
-      - run: python -m unittest test_ieee -v
+      - run: python -m unittest discover -v
+
+  e2e-smoke:
+    name: Compose E2E smoke
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: development
+      APP_PORT: "18080"
+      MYSQL_PORT: "13306"
+      ADMIN_PORT: "19090"
+      QQ_ENABLED: "false"
+      DEEPSEEK_API_KEY: ""
+      SMOKE_BASE_URL: http://127.0.0.1:18080
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Start isolated application stack
+        run: docker compose -p paper-assistant-smoke up --build -d --wait
+      - name: Exercise public guest journey
+        run: go run ./cmd/smoke
+      - name: Show stack logs on failure
+        if: failure()
+        run: docker compose -p paper-assistant-smoke logs --no-color
+      - name: Remove isolated application stack
+        if: always()
+        run: docker compose -p paper-assistant-smoke down --volumes --remove-orphans
 
   docker:
     name: Docker images build
